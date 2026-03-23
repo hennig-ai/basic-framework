@@ -28,8 +28,8 @@ class ChardetProtocol(Protocol):
 # Optional: chardet für bessere Encoding-Erkennung
 _chardet: Optional[ChardetProtocol] = None
 try:
-    import chardet
-    _chardet = chardet
+    import chardet  # type: ignore[reportMissingImports]
+    _chardet = chardet  # type: ignore[reportAssignmentType]
 except ImportError:
     log_msg("chardet nicht installiert - verwende nur BOM-Detection")
 

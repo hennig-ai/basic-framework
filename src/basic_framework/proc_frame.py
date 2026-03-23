@@ -625,7 +625,7 @@ def proc_frame_end(beep: Optional[bool] = None, close_log_flag: bool = True):
         if log_file_path:
             try:
                 if hasattr(os, 'startfile'):  # Windows
-                    os.startfile(log_file_path)
+                    os.startfile(log_file_path)  # type: ignore[attr-defined]
                 else:  # Unix/Linux/Mac - use open command
                     os.system(f'open "{log_file_path}"')
             except Exception as e:
