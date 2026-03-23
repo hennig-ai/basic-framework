@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "basic-framework"
-version = "3.2.8"
+version = "3.2.9"
 description = "Python framework with containers, conditions, and file operations"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,17 +12,12 @@ license = "MIT"
 keywords = [ "framework", "logging", "configuration", "containers", "ini", "database",]
 classifiers = [ "Development Status :: 4 - Beta", "Intended Audience :: Developers", "Operating System :: OS Independent", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3.10", "Programming Language :: Python :: 3.11", "Programming Language :: Python :: 3.12", "Programming Language :: Python :: 3.13",]
 dependencies = [ "configparser>=5.0.0",]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-mypy>=0.10.0",
-    "mypy>=1.0.0",
-]
-
 [[project.authors]]
 name = "Hennig IT Consulting GmbH"
 email = "contact@hennig-it-consulting.de"
+
+[project.optional-dependencies]
+dev = [ "pytest>=7.0.0", "pytest-mypy>=0.10.0", "mypy>=1.0.0",]
 
 [project.urls]
 Homepage = "https://github.com/hennig-ai/basic-framework"
