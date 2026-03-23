@@ -9,13 +9,10 @@ Requirements:
     - Microsoft Access Database Engine (free download from Microsoft)
 """
 
-from typing import Any, List, Tuple, TYPE_CHECKING, cast
+from typing import Any, List, Tuple, cast
 
 from .abstract_database import AbstractDatabase, DatabaseCursor
 from ..proc_frame import log_and_raise, log_msg
-
-if TYPE_CHECKING:
-    import pyodbc
 
 
 class MSAccessDB(AbstractDatabase):
@@ -53,33 +50,35 @@ class MSAccessDB(AbstractDatabase):
 
         Raises:
             ImportError: If pyodbc is not installed.
-            pyodbc.Error: If connection fails.
+            Exception: If connection fails.
         """
         try:
-            import pyodbc
+            import pyodbc as _pyodbc  # type: ignore[reportMissingImports]  # noqa: F811
         except ImportError:
             log_and_raise(ImportError(
                 "pyodbc ist nicht installiert. "
                 "Bitte installieren mit: pip install pyodbc"
             ))
+            raise  # unreachable, for type checker
 
-        self._connection: "pyodbc.Connection"
+        self._pyodbc_module: Any = _pyodbc
+        self._connection: Any = None
         self._db_path: str = connection_info
         self._is_connected: bool = False
         self._in_transaction: bool = False
 
         # Build connection string for MS Access
-        connection_string = (
+        connection_string: str = (
             f"Driver={{Microsoft Access Driver (*.mdb, *.accdb)}};"
             f"DBQ={connection_info};"
         )
 
         try:
-            self._connection = pyodbc.connect(connection_string)
+            self._connection = _pyodbc.connect(connection_string)  # type: ignore[reportUnknownMemberType]
             self._is_connected = True
             log_msg(f"MS Access Datenbank '{connection_info}' wurde geöffnet.")
-        except pyodbc.Error as e:
-            log_and_raise(pyodbc.Error(
+        except Exception as e:
+            log_and_raise(type(e)(
                 f"MS Access Verbindung fehlgeschlagen für '{connection_info}': {e}"
             ))
 
@@ -89,7 +88,7 @@ class MSAccessDB(AbstractDatabase):
         """
         if self._is_connected:
             log_msg(f"MS Access Datenbankverbindung zu '{self._db_path}' wird geschlossen...")
-            self._connection.close()
+            self._connection.close()  # type: ignore[reportUnknownMemberType]
             self._is_connected = False
 
     def table_exists(self, table_name: str) -> bool:
@@ -104,11 +103,14 @@ class MSAccessDB(AbstractDatabase):
         """
         self._ensure_connected()
 
-        cursor = self._connection.cursor()
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
         # Get list of tables from Access system catalog
-        tables = cursor.tables(tableType='TABLE')
-        result = any(row.table_name.lower() == table_name.lower() for row in tables)
-        cursor.close()
+        tables: Any = cursor.tables(tableType='TABLE')  # type: ignore[reportUnknownMemberType]
+        result: bool = any(
+            str(row.table_name).lower() == table_name.lower()  # type: ignore[reportUnknownMemberType]
+            for row in tables  # type: ignore[reportUnknownVariableType]
+        )
+        cursor.close()  # type: ignore[reportUnknownMemberType]
         return result
 
     def query_exists(self, query_name: str) -> bool:
@@ -125,11 +127,14 @@ class MSAccessDB(AbstractDatabase):
         """
         self._ensure_connected()
 
-        cursor = self._connection.cursor()
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
         # Get list of views (queries) from Access system catalog
-        views = cursor.tables(tableType='VIEW')
-        result = any(row.table_name.lower() == query_name.lower() for row in views)
-        cursor.close()
+        views: Any = cursor.tables(tableType='VIEW')  # type: ignore[reportUnknownMemberType]
+        result: bool = any(
+            str(row.table_name).lower() == query_name.lower()  # type: ignore[reportUnknownMemberType]
+            for row in views  # type: ignore[reportUnknownVariableType]
+        )
+        cursor.close()  # type: ignore[reportUnknownMemberType]
         return result
 
     def execute(self, sql: str) -> None:
@@ -140,18 +145,16 @@ class MSAccessDB(AbstractDatabase):
             sql: SQL statement to execute.
 
         Raises:
-            pyodbc.Error: If SQL execution fails.
+            Exception: If SQL execution fails.
         """
         self._ensure_connected()
-        self._ensure_pyodbc_imported()
-        import pyodbc
 
         try:
-            cursor = self._connection.cursor()
-            cursor.execute(sql)
-            cursor.close()
-        except pyodbc.Error as e:
-            log_and_raise(pyodbc.Error(f"Execute: SQL '{sql}' fehlgeschlagen: {e}"))
+            cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+            cursor.execute(sql)  # type: ignore[reportUnknownMemberType]
+            cursor.close()  # type: ignore[reportUnknownMemberType]
+        except Exception as e:
+            log_and_raise(type(e)(f"Execute: SQL '{sql}' fehlgeschlagen: {e}"))
 
     def execute_with_params(self, sql: str, params: Tuple[Any, ...]) -> None:
         """
@@ -162,18 +165,16 @@ class MSAccessDB(AbstractDatabase):
             params: Tuple of parameter values.
 
         Raises:
-            pyodbc.Error: If SQL execution fails.
+            Exception: If SQL execution fails.
         """
         self._ensure_connected()
-        self._ensure_pyodbc_imported()
-        import pyodbc
 
         try:
-            cursor = self._connection.cursor()
-            cursor.execute(sql, params)
-            cursor.close()
-        except pyodbc.Error as e:
-            log_and_raise(pyodbc.Error(f"Execute: SQL '{sql}' mit Parametern fehlgeschlagen: {e}"))
+            cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+            cursor.execute(sql, params)  # type: ignore[reportUnknownMemberType]
+            cursor.close()  # type: ignore[reportUnknownMemberType]
+        except Exception as e:
+            log_and_raise(type(e)(f"Execute: SQL '{sql}' mit Parametern fehlgeschlagen: {e}"))
 
     def open_cursor(self, sql: str) -> DatabaseCursor:
         """
@@ -186,19 +187,17 @@ class MSAccessDB(AbstractDatabase):
             Cursor object for iterating results.
 
         Raises:
-            pyodbc.Error: If query fails.
+            Exception: If query fails.
         """
         self._ensure_connected()
-        self._ensure_pyodbc_imported()
-        import pyodbc
 
         try:
-            cursor = self._connection.cursor()
-            cursor.execute(sql)
+            cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+            cursor.execute(sql)  # type: ignore[reportUnknownMemberType]
             return cast(DatabaseCursor, cursor)
-        except pyodbc.Error as e:
-            log_and_raise(pyodbc.Error(f"OpenCursor: SQL '{sql}' fehlgeschlagen: {e}"))
-            raise  # Für Type Checker - wird nie erreicht
+        except Exception as e:
+            log_and_raise(type(e)(f"OpenCursor: SQL '{sql}' fehlgeschlagen: {e}"))
+            raise  # For type checker - never reached
 
     def open_cursor_with_params(self, sql: str, params: Tuple[Any, ...]) -> DatabaseCursor:
         """
@@ -212,19 +211,17 @@ class MSAccessDB(AbstractDatabase):
             Cursor object for iterating results.
 
         Raises:
-            pyodbc.Error: If query fails.
+            Exception: If query fails.
         """
         self._ensure_connected()
-        self._ensure_pyodbc_imported()
-        import pyodbc
 
         try:
-            cursor = self._connection.cursor()
-            cursor.execute(sql, params)
+            cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+            cursor.execute(sql, params)  # type: ignore[reportUnknownMemberType]
             return cast(DatabaseCursor, cursor)
-        except pyodbc.Error as e:
-            log_and_raise(pyodbc.Error(f"OpenCursor: SQL '{sql}' mit Parametern fehlgeschlagen: {e}"))
-            raise  # Für Type Checker - wird nie erreicht
+        except Exception as e:
+            log_and_raise(type(e)(f"OpenCursor: SQL '{sql}' mit Parametern fehlgeschlagen: {e}"))
+            raise  # For type checker - never reached
 
     def get_name(self) -> str:
         """
@@ -253,10 +250,13 @@ class MSAccessDB(AbstractDatabase):
         if not self.table_exists(table_name):
             log_and_raise(ValueError(f"Tabelle '{table_name}' existiert nicht in Datenbank '{self._db_path}'."))
 
-        cursor = self._connection.cursor()
-        columns_info = cursor.columns(table=table_name)
-        columns = [row.column_name for row in columns_info]
-        cursor.close()
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+        columns_info: Any = cursor.columns(table=table_name)  # type: ignore[reportUnknownMemberType]
+        columns: List[str] = [
+            str(row.column_name)  # type: ignore[reportUnknownMemberType]
+            for row in columns_info  # type: ignore[reportUnknownVariableType]
+        ]
+        cursor.close()  # type: ignore[reportUnknownMemberType]
         return columns
 
     def get_table_column_types(self, table_name: str) -> List[Tuple[str, str]]:
@@ -277,10 +277,13 @@ class MSAccessDB(AbstractDatabase):
         if not self.table_exists(table_name):
             log_and_raise(ValueError(f"Tabelle '{table_name}' existiert nicht in Datenbank '{self._db_path}'."))
 
-        cursor = self._connection.cursor()
-        columns_info = cursor.columns(table=table_name)
-        columns = [(row.column_name, row.type_name) for row in columns_info]
-        cursor.close()
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+        columns_info: Any = cursor.columns(table=table_name)  # type: ignore[reportUnknownMemberType]
+        columns: List[Tuple[str, str]] = [
+            (str(row.column_name), str(row.type_name))  # type: ignore[reportUnknownMemberType]
+            for row in columns_info  # type: ignore[reportUnknownVariableType]
+        ]
+        cursor.close()  # type: ignore[reportUnknownMemberType]
         return columns
 
     def begin_transaction(self) -> None:
@@ -313,14 +316,14 @@ class MSAccessDB(AbstractDatabase):
     def commit(self) -> None:
         """Commit current transaction."""
         self._ensure_connected()
-        self._connection.commit()
+        self._connection.commit()  # type: ignore[reportUnknownMemberType]
         self._in_transaction = False
         log_msg("Transaction committed.")
 
     def rollback(self) -> None:
         """Rollback current transaction."""
         self._ensure_connected()
-        self._connection.rollback()
+        self._connection.rollback()  # type: ignore[reportUnknownMemberType]
         self._in_transaction = False
         log_msg("Transaction rollback.")
 
@@ -333,14 +336,15 @@ class MSAccessDB(AbstractDatabase):
         """
         self._ensure_connected()
 
-        cursor = self._connection.cursor()
-        tables = cursor.tables(tableType='TABLE')
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+        tables: Any = cursor.tables(tableType='TABLE')  # type: ignore[reportUnknownMemberType]
         # Filter out MSys* system tables
-        table_list = [
-            row.table_name for row in tables
-            if not row.table_name.startswith('MSys')
+        table_list: List[str] = [
+            str(row.table_name)  # type: ignore[reportUnknownMemberType]
+            for row in tables  # type: ignore[reportUnknownVariableType]
+            if not str(row.table_name).startswith('MSys')  # type: ignore[reportUnknownMemberType]
         ]
-        cursor.close()
+        cursor.close()  # type: ignore[reportUnknownMemberType]
         return table_list
 
     def get_queries(self) -> List[str]:
@@ -354,10 +358,13 @@ class MSAccessDB(AbstractDatabase):
         """
         self._ensure_connected()
 
-        cursor = self._connection.cursor()
-        views = cursor.tables(tableType='VIEW')
-        query_list = [row.table_name for row in views]
-        cursor.close()
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+        views: Any = cursor.tables(tableType='VIEW')  # type: ignore[reportUnknownMemberType]
+        query_list: List[str] = [
+            str(row.table_name)  # type: ignore[reportUnknownMemberType]
+            for row in views  # type: ignore[reportUnknownVariableType]
+        ]
+        cursor.close()  # type: ignore[reportUnknownMemberType]
         return query_list
 
     def get_primary_key(self, table_name: str) -> List[str]:
@@ -383,14 +390,14 @@ class MSAccessDB(AbstractDatabase):
                 f"Tabelle '{table_name}' existiert nicht in Datenbank '{self._db_path}'."
             ))
 
-        cursor = self._connection.cursor()
-        pk_info = cursor.primaryKeys(table=table_name)
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+        pk_info: Any = cursor.primaryKeys(table=table_name)  # type: ignore[reportUnknownMemberType]
         # primaryKeys returns rows with: table_cat, table_schem, table_name,
         # column_name, key_seq, pk_name
-        pk_columns = []
-        for row in pk_info:
-            pk_columns.append((row.key_seq, row.column_name))
-        cursor.close()
+        pk_columns: List[Tuple[int, str]] = []
+        for row in pk_info:  # type: ignore[reportUnknownVariableType]
+            pk_columns.append((int(row.key_seq), str(row.column_name)))  # type: ignore[reportUnknownMemberType]
+        cursor.close()  # type: ignore[reportUnknownMemberType]
 
         # Sort by key_seq and return column names
         pk_columns.sort(key=lambda x: x[0])
@@ -408,10 +415,10 @@ class MSAccessDB(AbstractDatabase):
             AUTOINCREMENT/COUNTER column.
         """
         self._ensure_connected()
-        cursor = self._connection.cursor()
-        cursor.execute("SELECT @@IDENTITY")
-        result = cursor.fetchone()
-        cursor.close()
+        cursor: Any = self._connection.cursor()  # type: ignore[reportUnknownMemberType]
+        cursor.execute("SELECT @@IDENTITY")  # type: ignore[reportUnknownMemberType]
+        result: Any = cursor.fetchone()  # type: ignore[reportUnknownMemberType]
+        cursor.close()  # type: ignore[reportUnknownMemberType]
         if result is None or result[0] is None:
             return 0
         return int(result[0])
@@ -425,21 +432,6 @@ class MSAccessDB(AbstractDatabase):
         """
         if not self._is_connected:
             log_and_raise(RuntimeError("MSAccessDB: Keine Datenbankverbindung."))
-
-    def _ensure_pyodbc_imported(self) -> None:
-        """
-        Ensure pyodbc is available.
-
-        Raises:
-            ImportError: If pyodbc is not installed.
-        """
-        try:
-            import pyodbc  # noqa: F401
-        except ImportError:
-            log_and_raise(ImportError(
-                "pyodbc ist nicht installiert. "
-                "Bitte installieren mit: pip install pyodbc"
-            ))
 
 
 __all__ = ['MSAccessDB']

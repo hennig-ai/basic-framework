@@ -55,7 +55,7 @@ class TestLoggingObjectInit:
         with open(log_path, 'r', encoding='utf-8') as f:
             header = f.readline()
 
-        assert "Zeit;Applikation;Version;PID;ThreadID;ThreadName;Klasse;Methode;Nachricht" in header
+        assert "Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Message" in header
 
     def test_init_empty_app_name_raises(self, temp_log_dir: Path) -> None:
         """Test that empty app_name raises ValueError."""

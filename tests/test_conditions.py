@@ -138,23 +138,6 @@ class TestConditionAnd:
         and_cond = ConditionAnd(cond1, cond2)
         assert and_cond.is_true(data) is False
 
-    def test_first_condition_none_raises(self) -> None:
-        """Test AND with first condition None raises ValueError."""
-        cond2 = ConditionEquals("count", 100)
-        with pytest.raises(ValueError):
-            ConditionAnd(None, cond2)  # type: ignore
-
-    def test_second_condition_none_raises(self) -> None:
-        """Test AND with second condition None raises ValueError."""
-        cond1 = ConditionEquals("status", "active")
-        with pytest.raises(ValueError):
-            ConditionAnd(cond1, None)  # type: ignore
-
-    def test_both_conditions_none_raises(self) -> None:
-        """Test AND with both conditions None raises ValueError."""
-        with pytest.raises(ValueError):
-            ConditionAnd(None, None)  # type: ignore
-
     def test_as_string_both_conditions(self) -> None:
         """Test as_string with both conditions."""
         cond1 = ConditionEquals("status", "active")

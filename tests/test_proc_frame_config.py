@@ -314,7 +314,7 @@ console_output = false
         log_content = log_files[0].read_text(encoding="utf-8")
 
         # Check header contains Version column
-        assert "Zeit;Applikation;Version;PID" in log_content
+        assert "Timestamp;Application;Version;PID" in log_content
 
         # Check log lines contain the version
         assert ";VersionTestApp;3.1.4;" in log_content

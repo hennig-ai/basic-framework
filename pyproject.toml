@@ -11,30 +11,30 @@ requires-python = ">=3.10"
 license = "MIT"
 keywords = [ "framework", "logging", "configuration", "containers", "ini", "database",]
 classifiers = [ "Development Status :: 4 - Beta", "Intended Audience :: Developers", "Operating System :: OS Independent", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3.10", "Programming Language :: Python :: 3.11", "Programming Language :: Python :: 3.12", "Programming Language :: Python :: 3.13",]
-dependencies = [ "configparser>=5.0.0",]
+dependencies = []
 [[project.authors]]
 name = "Hennig IT Consulting GmbH"
 email = "contact@hennig-it-consulting.de"
 
 [project.optional-dependencies]
-dev = [ "pytest>=7.0.0", "pytest-mypy>=0.10.0", "mypy>=1.0.0",]
+msaccess = [ "pyodbc",]
+dev = [ "pytest>=7.0.0", "pyright>=1.1.0",]
 
 [project.urls]
 Homepage = "https://github.com/hennig-ai/basic-framework"
 Issues = "https://github.com/hennig-ai/basic-framework/issues"
 
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_ignores = true
-ignore_missing_imports = true
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+reportMissingImports = "warning"
 
 [tool.setuptools.package-data]
 basic_framework = [ "*.md", "*.txt",]
 
 [tool.pytest.ini_options]
 testpaths = [ "tests",]
-addopts = "--mypy"
+addopts = ""
 
 [tool.setuptools.packages.find]
 where = [ "src",]

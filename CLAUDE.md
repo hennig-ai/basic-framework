@@ -7,15 +7,15 @@
 ## Dependencies
 
 - Python >= 3.10
-- configparser >= 5.0.0
-- pyodbc (optional, MS Access only)
+- Keine externen Runtime-Dependencies (nur Python Standard Library)
+- pyodbc (optional, MS Access only — `pip install basic-framework[msaccess]`)
 
 ## Development Commands
 
 ```bash
-pip install -e ".[dev]"             # Dev install (editable + pytest, mypy)
-python -m pytest tests/             # Run all tests
-mypy src/basic_framework --ignore-missing-imports  # Type check
+pip install -e ".[dev]"             # Dev install (editable + pytest, pyright)
+python -m pytest tests/             # Run all tests (includes pyright type check)
+pyright src/basic_framework         # Type check (standalone)
 python -m build                     # Build package
 ```
 

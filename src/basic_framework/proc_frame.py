@@ -370,27 +370,31 @@ def _release_process_lock() -> None:
             _lock_file_path = None
 
 
-def proc_frame_start(app_name: str, app_version: str, config_file_path: str, dir_hint_for_http: str = ""):
+def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional[str] = None, dir_hint_for_http: str = ""):
     """Initialize the process framework with logging and configuration.
 
-    Sets up global logging, loads INI configuration file, and initializes
-    the application environment. Creates log directory and file automatically.
-    Optionally acquires an exclusive filesystem lock to prevent multiple instances.
+    Sets up global logging and optionally loads INI configuration file.
 
-    The directory containing the config file becomes the base directory for:
-    - Log files (created in {config_dir}/logs/)
-    - Resolving relative paths in config (via resolve_config_path())
+    When config_file_path is provided (full mode):
+    - Loads INI configuration, sets up file + console logging, optional single-instance lock.
+    - Log files created in {config_dir}/logs/.
+
+    When config_file_path is None (console-only mode):
+    - No INI configuration, no file logging, no single-instance lock.
+    - Structured CSV logging to stdout only.
+    - get_global_par() and related config functions are not available.
 
     Args:
         app_name (str): Name of the application for logging purposes.
         app_version (str): Version of the application (e.g., "1.2.3").
-        config_file_path (str): Path to the INI configuration file.
+        config_file_path (str, optional): Path to the INI configuration file.
+            If None, console-only logging without configuration. Defaults to None.
         dir_hint_for_http (str, optional): Directory hint for HTTP operations. Defaults to "".
 
-    Required config parameters in [default] section:
+    Required config parameters in [default] section (only when config_file_path is provided):
         single_instance: true/false - Enable single instance mode with filesystem lock.
 
-    Optional config parameters in [default] section:
+    Optional config parameters in [default] section (only when config_file_path is provided):
         tmp_dir: Directory for lock file (default: ./tmp, relative to config file).
 
     Raises:
@@ -408,61 +412,70 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: str, dir
     if not app_version:
         log_and_raise("app_version is required and cannot be empty")
 
-    # Set config directory (base for all relative paths)
-    _config_dir = os.path.dirname(os.path.abspath(config_file_path))
+    if config_file_path is not None:
+        # --- Full mode: INI configuration + file logging ---
 
-    # Initialize global singleton IniConfigFile - central config management
-    try:
-        _ini_config_file = IniConfigFile(config_file_path)
-    except (FileNotFoundError, Exception):
-        log_and_raise(f"Fehler beim Lesen der Configdatei: {config_file_path}")
+        # Set config directory (base for all relative paths)
+        _config_dir = os.path.dirname(os.path.abspath(config_file_path))
 
-    # Read logging configuration from INI (with defaults)
-    console_output = _read_bool_config("console_output", "logging", True)
-    include_stacktrace = _read_bool_config("include_stacktrace", "logging", True)
-    copy_on_error = _read_bool_config("copy_on_error", "logging", True)
-    error_log_dir = _read_string_config("error_log_dir", "logging", "errors")
-    error_log_auto_copy_dir = _read_string_config("error_log_auto_copy_dir", "logging", None)
-    _beep_on_end = _read_bool_config("beep_on_end", "logging", False)
+        # Initialize global singleton IniConfigFile - central config management
+        try:
+            _ini_config_file = IniConfigFile(config_file_path)
+        except (FileNotFoundError, Exception):
+            log_and_raise(f"Fehler beim Lesen der Configdatei: {config_file_path}")
 
-    # Validate error_log_auto_copy_dir if specified
-    if error_log_auto_copy_dir and not os.path.isdir(error_log_auto_copy_dir):
-        log_and_raise(f"error_log_auto_copy_dir '{error_log_auto_copy_dir}' does not exist or is not a directory")
+        # Read logging configuration from INI (with defaults)
+        console_output = _read_bool_config("console_output", "logging", True)
+        include_stacktrace = _read_bool_config("include_stacktrace", "logging", True)
+        copy_on_error = _read_bool_config("copy_on_error", "logging", True)
+        error_log_dir = _read_string_config("error_log_dir", "logging", "errors")
+        error_log_auto_copy_dir = _read_string_config("error_log_auto_copy_dir", "logging", None)
+        _beep_on_end = _read_bool_config("beep_on_end", "logging", False)
 
-    # Read single_instance configuration - required parameter
-    assert _ini_config_file is not None
-    if not _ini_config_file.has_option(C_SINGLE_INSTANCE, "default"):
-        log_and_raise(f"Config parameter '{C_SINGLE_INSTANCE}' is required in section [default]")
+        # Validate error_log_auto_copy_dir if specified
+        if error_log_auto_copy_dir and not os.path.isdir(error_log_auto_copy_dir):
+            log_and_raise(f"error_log_auto_copy_dir '{error_log_auto_copy_dir}' does not exist or is not a directory")
 
-    single_instance_value = _ini_config_file.get_value(C_SINGLE_INSTANCE, "default")
-    if single_instance_value is None or single_instance_value == "":
-        log_and_raise(f"Config parameter '{C_SINGLE_INSTANCE}' cannot be empty")
+        # Read single_instance configuration - required parameter
+        assert _ini_config_file is not None
+        if not _ini_config_file.has_option(C_SINGLE_INSTANCE, "default"):
+            log_and_raise(f"Config parameter '{C_SINGLE_INSTANCE}' is required in section [default]")
 
-    single_instance_lower: str = single_instance_value.lower()
-    if single_instance_lower not in ("true", "false", "1", "0", "yes", "no"):
-        log_and_raise(
-            f"Config parameter '{C_SINGLE_INSTANCE}' has invalid value '{single_instance_value}'. "
-            f"Expected: true/false, yes/no, 1/0"
+        single_instance_value = _ini_config_file.get_value(C_SINGLE_INSTANCE, "default")
+        if single_instance_value is None or single_instance_value == "":
+            log_and_raise(f"Config parameter '{C_SINGLE_INSTANCE}' cannot be empty")
+
+        single_instance_lower: str = single_instance_value.lower()
+        if single_instance_lower not in ("true", "false", "1", "0", "yes", "no"):
+            log_and_raise(
+                f"Config parameter '{C_SINGLE_INSTANCE}' has invalid value '{single_instance_value}'. "
+                f"Expected: true/false, yes/no, 1/0"
+            )
+
+        single_instance: bool = single_instance_lower in ("true", "1", "yes")
+
+        # Acquire exclusive filesystem lock only if single_instance is enabled
+        if single_instance:
+            _acquire_process_lock(app_name)
+
+        # Create LoggingObject with file logging
+        log_dir = os.path.join(_config_dir, "logs")
+        _default_logger = LoggingObject(
+            app_name=app_name,
+            app_version=app_version,
+            log_dir=log_dir,
+            console_output=console_output,
+            include_stacktrace=include_stacktrace,
+            copy_on_error=copy_on_error,
+            error_log_dir=error_log_dir if error_log_dir else "errors",
+            error_log_auto_copy_dir=error_log_auto_copy_dir,
         )
-
-    single_instance: bool = single_instance_lower in ("true", "1", "yes")
-
-    # Acquire exclusive filesystem lock only if single_instance is enabled
-    if single_instance:
-        _acquire_process_lock(app_name)
-
-    # Create LoggingObject with all configuration
-    log_dir = os.path.join(_config_dir, "logs")
-    _default_logger = LoggingObject(
-        app_name=app_name,
-        app_version=app_version,
-        log_dir=log_dir,
-        console_output=console_output,
-        include_stacktrace=include_stacktrace,
-        copy_on_error=copy_on_error,
-        error_log_dir=error_log_dir if error_log_dir else "errors",
-        error_log_auto_copy_dir=error_log_auto_copy_dir,
-    )
+    else:
+        # --- Console-only mode: no INI, no file logging ---
+        _default_logger = LoggingObject(
+            app_name=app_name,
+            app_version=app_version,
+        )
 
     _initialized = True
     log_msg("Prozess gestartet.")

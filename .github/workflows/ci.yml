@@ -30,9 +30,9 @@ jobs:
         run: |
           python -m pytest tests/ -v
 
-      - name: Type check with mypy
+      - name: Type check with pyright
         run: |
-          mypy src/basic_framework --ignore-missing-imports
+          pyright src/basic_framework
 
   bump-version:
     needs: test

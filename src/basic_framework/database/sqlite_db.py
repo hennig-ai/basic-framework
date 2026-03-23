@@ -311,10 +311,10 @@ class SQLiteDB(AbstractDatabase):
         cursor = self._connection.execute(f"PRAGMA table_info({table_name})")
         # PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
         # pk is 0 if not part of PK, else 1-based index in composite PK
-        pk_columns = []
+        pk_columns: List[Tuple[int, str]] = []
         for row in cursor.fetchall():
             if row[5] > 0:  # pk column
-                pk_columns.append((row[5], row[1]))  # (pk_index, column_name)
+                pk_columns.append((int(row[5]), str(row[1])))  # (pk_index, column_name)
         cursor.close()
 
         # Sort by pk index and return column names

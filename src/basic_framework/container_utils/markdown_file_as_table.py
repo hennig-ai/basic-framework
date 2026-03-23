@@ -3,7 +3,7 @@ MarkdownFileAsTable - Read-only container for markdown files with table
 Thin wrapper around ContainerInMemory extracted from MarkdownDocument
 """
 
-from typing import Optional, Any, Collection, List
+from typing import Optional, Any, Collection
 from .abstract_container import AbstractContainer
 from .abstract_iterator import AbstractIterator
 from .container_in_memory import ContainerInMemory
@@ -62,11 +62,11 @@ class MarkdownFileAsTable(AbstractContainer):
         return self._container.create_iterator(
             cols_from_target_must_exist_in_source, condition)
 
-    def iterator_is_empty(self, position: int) -> bool:
+    def iterator_is_empty(self, row: int) -> bool:
         """Check if iterator is at end - delegates to ContainerInMemory."""
         if self._container is None:
             return True
-        return self._container.iterator_is_empty(position)
+        return self._container.iterator_is_empty(row)
 
     def pp_action(self) -> None:
         """Move to next position - delegates to ContainerInMemory."""
@@ -89,10 +89,10 @@ class MarkdownFileAsTable(AbstractContainer):
             return False
         return self._container.field_exists(column)
 
-    def get_list_of_fields_as_ref(self) -> Collection:
+    def get_list_of_fields_as_ref(self) -> Collection[str]:
         """Get list of fields - delegates to ContainerInMemory."""
         if self._container is None:
-            return []
+            return list[str]()
         return self._container.get_list_of_fields_as_ref()
 
     def get_condition(self) -> Optional[Condition]:
@@ -108,11 +108,11 @@ class MarkdownFileAsTable(AbstractContainer):
         # Check if position exists in m_Rows
         return position not in self._container.m_Rows
 
-    def get_object(self, position: int) -> Any:
-        """Get object at position - delegates to ContainerInMemory."""
+    def get_object(self, row: int) -> Any:
+        """Get object at row - delegates to ContainerInMemory."""
         if self._container is None:
             return None
-        return self._container.get_object(position)
+        return self._container.get_object(row)
 
     def get_technical_container_name(self) -> str:
         """Get technical container name."""

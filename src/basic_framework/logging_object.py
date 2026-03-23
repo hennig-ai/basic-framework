@@ -15,9 +15,12 @@ import threading
 import traceback
 import shutil
 from datetime import datetime
-from typing import Optional, Dict, Tuple, TextIO, NoReturn, Union, Any
+from typing import Optional, Dict, Tuple, TextIO, NoReturn, Union
 
 from .utils.basic_utils import get_format_now_stamp
+
+
+CSV_LOG_HEADER: str = "Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Message"
 
 
 class LoggingObject:
@@ -38,7 +41,7 @@ class LoggingObject:
         self,
         app_name: str,
         app_version: str,
-        log_dir: str,
+        log_dir: Optional[str] = None,
         *,
         console_output: bool = True,
         include_stacktrace: bool = True,
@@ -53,11 +56,15 @@ class LoggingObject:
             app_name: Application name for log entries.
             app_version: Application version for log entries.
             log_dir: Directory where log files will be created.
+                     If None, only console output is used (no file logging).
             console_output: Whether to output to console (default: True).
             include_stacktrace: Whether to include stacktraces (default: True).
             copy_on_error: Whether to copy logs on error (default: True).
+                           Ignored when log_dir is None.
             error_log_dir: Subdirectory name for error logs (default: "errors").
+                           Ignored when log_dir is None.
             error_log_auto_copy_dir: Optional auto-copy directory for error logs.
+                                     Ignored when log_dir is None.
 
         Raises:
             ValueError: If app_name or app_version is empty.
@@ -79,29 +86,35 @@ class LoggingObject:
         self._app_version: str = app_version
         self._console_output: bool = console_output
         self._include_stacktrace: bool = include_stacktrace
-        self._copy_on_error: bool = copy_on_error
-        self._log_dir: str = log_dir
+        self._log_dir: Optional[str] = log_dir
 
         # Thread safety
         self._write_lock = threading.Lock()
 
-        # Initialize log file
-        self._log_filename: str = f"{app_name}_log_{get_format_now_stamp(True)}"
-        os.makedirs(log_dir, exist_ok=True)
-        log_file_path = os.path.join(log_dir, f"{self._log_filename}.txt")
+        # Initialize log file (only when log_dir is provided)
+        self._log_filename: str = ""
+        self._logfile: Optional[TextIO] = None
 
-        self._logfile: Optional[TextIO] = open(log_file_path, 'w', encoding='utf-8')
-        self._logfile.write(
-            "Zeit;Applikation;Version;PID;ThreadID;ThreadName;Klasse;Methode;Nachricht\n"
-        )
-        self._logfile.flush()
+        if log_dir is not None:
+            self._copy_on_error: bool = copy_on_error
+            self._log_filename = f"{app_name}_log_{get_format_now_stamp(True)}"
+            os.makedirs(log_dir, exist_ok=True)
+            log_file_path = os.path.join(log_dir, f"{self._log_filename}.txt")
+
+            self._logfile = open(log_file_path, 'w', encoding='utf-8')
+            self._logfile.write(f"{CSV_LOG_HEADER}\n")
+            self._logfile.flush()
+        else:
+            self._copy_on_error = False
+            if self._console_output:
+                print(CSV_LOG_HEADER)
 
         # Error log setup
         self._error_log_dir: Optional[str] = None
         self._error_log_auto_copy_dir: Optional[str] = error_log_auto_copy_dir
         self._error_log_state: Dict[int, Tuple[str, str, str, int]] = {}
 
-        if copy_on_error:
+        if self._copy_on_error and log_dir is not None:
             self._error_log_dir = os.path.join(log_dir, error_log_dir)
             os.makedirs(self._error_log_dir, exist_ok=True)
 
