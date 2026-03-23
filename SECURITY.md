@@ -13,4 +13,4 @@ You will receive a response within 5 business days. Once confirmed, a fix will b
 
 ## Supported Versions
 
-Only the latest release on `master` receives security fixes.
+Only the latest release on `main` receives security fixes.

@@ -15,12 +15,12 @@ Open an issue using the **Feature Request** template and describe the use case.
 
 ## How to Submit a Pull Request
 
-1. Fork the repository and create a branch from `master`
+1. Fork the repository and create a branch from `main`
 2. Install dev dependencies: `pip install -r requirements-dev.txt`
 3. Make your changes, following the existing code style (type hints on all parameters and return values)
 4. Run tests: `python -m pytest tests/`
 5. Run type checking: `mypy src/basic_framework --ignore-missing-imports`
-6. Open a pull request against `master`
+6. Open a pull request against `main`
 
 ## Code Style
 
