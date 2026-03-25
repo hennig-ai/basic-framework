@@ -48,6 +48,7 @@ class LoggingObject:
         copy_on_error: bool = True,
         error_log_dir: str = "errors",
         error_log_auto_copy_dir: Optional[str] = None,
+        error_only: bool = False,
     ) -> None:
         """
         Initialize the LoggingObject.
@@ -65,6 +66,8 @@ class LoggingObject:
                            Ignored when log_dir is None.
             error_log_auto_copy_dir: Optional auto-copy directory for error logs.
                                      Ignored when log_dir is None.
+            error_only: If True, log_msg() is silenced and only log_and_raise()
+                        writes output. Not changeable at runtime.
 
         Raises:
             ValueError: If app_name or app_version is empty.
@@ -86,10 +89,14 @@ class LoggingObject:
         self._app_version: str = app_version
         self._console_output: bool = console_output
         self._include_stacktrace: bool = include_stacktrace
+        self._error_only: bool = error_only
         self._log_dir: Optional[str] = log_dir
 
         # Thread safety
         self._write_lock = threading.Lock()
+
+        # Header tracking for lazy writing in error_only mode
+        self._header_written: bool = False
 
         # Initialize log file (only when log_dir is provided)
         self._log_filename: str = ""
@@ -102,12 +109,15 @@ class LoggingObject:
             log_file_path = os.path.join(log_dir, f"{self._log_filename}.txt")
 
             self._logfile = open(log_file_path, 'w', encoding='utf-8')
-            self._logfile.write(f"{CSV_LOG_HEADER}\n")
-            self._logfile.flush()
+            if not self._error_only:
+                self._logfile.write(f"{CSV_LOG_HEADER}\n")
+                self._logfile.flush()
+                self._header_written = True
         else:
             self._copy_on_error = False
-            if self._console_output:
+            if self._console_output and not self._error_only:
                 print(CSV_LOG_HEADER)
+                self._header_written = True
 
         # Error log setup
         self._error_log_dir: Optional[str] = None
@@ -162,6 +172,9 @@ class LoggingObject:
                 Default is 1 (direct caller). Use 2 when called from a wrapper.
             is_error: If True, console output is printed in red.
         """
+        if self._error_only and not is_error:
+            return
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         pid = os.getpid()
 
@@ -179,6 +192,14 @@ class LoggingObject:
 
         # Thread-safe console + file output
         with self._write_lock:
+            # Lazy header: write on first actual output in error_only mode
+            if not self._header_written:
+                if self._console_output:
+                    print(CSV_LOG_HEADER)
+                if self._logfile:
+                    self._logfile.write(f"{CSV_LOG_HEADER}\n")
+                self._header_written = True
+
             if self._console_output:
                 if is_error:
                     self._print_red_unlocked(formatted_msg)

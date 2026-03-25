@@ -370,7 +370,7 @@ def _release_process_lock() -> None:
             _lock_file_path = None
 
 
-def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional[str] = None, dir_hint_for_http: str = ""):
+def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional[str] = None, dir_hint_for_http: str = "", error_only: bool = False):
     """Initialize the process framework with logging and configuration.
 
     Sets up global logging and optionally loads INI configuration file.
@@ -390,6 +390,8 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         config_file_path (str, optional): Path to the INI configuration file.
             If None, console-only logging without configuration. Defaults to None.
         dir_hint_for_http (str, optional): Directory hint for HTTP operations. Defaults to "".
+        error_only (bool, optional): If True, log_msg() is silenced and only
+            log_and_raise() writes output. Defaults to False.
 
     Required config parameters in [default] section (only when config_file_path is provided):
         single_instance: true/false - Enable single instance mode with filesystem lock.
@@ -431,6 +433,9 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         error_log_dir = _read_string_config("error_log_dir", "logging", "errors")
         error_log_auto_copy_dir = _read_string_config("error_log_auto_copy_dir", "logging", None)
         _beep_on_end = _read_bool_config("beep_on_end", "logging", False)
+        # INI error_only overrides parameter (if set in INI, it wins)
+        if _read_bool_config("error_only", "logging", False):
+            error_only = True
 
         # Validate error_log_auto_copy_dir if specified
         if error_log_auto_copy_dir and not os.path.isdir(error_log_auto_copy_dir):
@@ -469,12 +474,14 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
             copy_on_error=copy_on_error,
             error_log_dir=error_log_dir if error_log_dir else "errors",
             error_log_auto_copy_dir=error_log_auto_copy_dir,
+            error_only=error_only,
         )
     else:
         # --- Console-only mode: no INI, no file logging ---
         _default_logger = LoggingObject(
             app_name=app_name,
             app_version=app_version,
+            error_only=error_only,
         )
 
     _initialized = True
