@@ -30,7 +30,7 @@ typeCheckingMode = "strict"
 reportMissingImports = "warning"
 
 [tool.setuptools.package-data]
-basic_framework = [ "*.md", "*.txt",]
+basic_framework = [ "*.md", "*.txt", "py.typed",]
 
 [tool.pytest.ini_options]
 testpaths = [ "tests",]
