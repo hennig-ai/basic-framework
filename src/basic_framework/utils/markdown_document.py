@@ -3,35 +3,14 @@ MarkdownDocument - Parser für Markdown-Dokumente mit Baumstruktur.
 """
 
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Protocol, TypedDict, cast
+from typing import Any, Dict, List, Optional, cast
 
 
 # Basic Framework Imports
 from ..container_utils.knot_object import KnotObject
 from ..container_utils.container_in_memory import ContainerInMemory
-from ..proc_frame import log_msg
+from ..proc_frame import log_msg, log_and_raise
 from ..ext_filesystem import file_must_exist
-
-
-# Explizites Typing für optionale chardet-Dependency
-class ChardetResult(TypedDict):
-    """Typisiertes Ergebnis von chardet.detect()."""
-    encoding: Optional[str]
-    confidence: float
-
-
-class ChardetProtocol(Protocol):
-    """Protocol für chardet-Modul Interface."""
-    def detect(self, byte_str: bytes) -> ChardetResult: ...
-
-
-# Optional: chardet für bessere Encoding-Erkennung
-_chardet: Optional[ChardetProtocol] = None
-try:
-    import chardet  # type: ignore[reportMissingImports]
-    _chardet = chardet  # type: ignore[reportAssignmentType]
-except ImportError:
-    log_msg("chardet nicht installiert - verwende nur BOM-Detection")
 
 
 class MarkdownLineType(IntEnum):
@@ -142,37 +121,36 @@ class MarkdownDocument:
         log_msg(f"Markdown-String erfolgreich geparst. {self.m_LineCounter} Zeilen verarbeitet.")
 
     def detect_encoding(self, sFilePath: str) -> str:
-        """Erkennt die Dateikodierung."""
-        # BOM-Detection
+        """Erkennt die Dateikodierung anhand des BOM (Byte Order Mark).
+
+        Ohne BOM wird UTF-8 als Default angenommen. Falls die Datei
+        tatsaechlich kein UTF-8 ist, greift in read_file_with_encoding()
+        ein CP1252-Fallback fuer westeuropaeische Encodings.
+        """
         with open(sFilePath, 'rb') as oStream:
             byteArray = oStream.read(3)
 
-            encoding = "UTF-8"  # Default
+        # UTF-8 BOM: EF BB BF
+        if len(byteArray) >= 3 and byteArray[0] == 0xEF and byteArray[1] == 0xBB and byteArray[2] == 0xBF:
+            return "UTF-8"
+        # UTF-16 LE BOM: FF FE
+        if len(byteArray) >= 2 and byteArray[0] == 0xFF and byteArray[1] == 0xFE:
+            return "UTF-16"
+        # UTF-16 BE BOM: FE FF
+        if len(byteArray) >= 2 and byteArray[0] == 0xFE and byteArray[1] == 0xFF:
+            return "UTF-16"
 
-            if len(byteArray) >= 3:
-                # UTF-8 BOM: EF BB BF
-                if byteArray[0] == 0xEF and byteArray[1] == 0xBB and byteArray[2] == 0xBF:
-                    encoding = "UTF-8"
-                # UTF-16 LE BOM: FF FE
-                elif len(byteArray) >= 2 and byteArray[0] == 0xFF and byteArray[1] == 0xFE:
-                    encoding = "UTF-16"
-                # UTF-16 BE BOM: FE FF
-                elif len(byteArray) >= 2 and byteArray[0] == 0xFE and byteArray[1] == 0xFF:
-                    encoding = "UTF-16"
-                else:
-                    # Kein BOM gefunden - chardet als Fallback
-                    if _chardet is not None:
-                        oStream.seek(0)
-                        sample = oStream.read(10000)
-                        if sample:
-                            result = _chardet.detect(sample)
-                            if result['confidence'] > 0.7:
-                                encoding = result['encoding'] or "UTF-8"
-
-        return encoding
+        return "UTF-8"
 
     def read_file_with_encoding(self, sFilePath: str, sEncoding: str) -> str:
-        """Liest Datei mit korrektem Encoding."""
+        """Liest Datei mit korrektem Encoding.
+
+        Versucht zuerst das uebergebene Encoding. Schlaegt das fehl, wird
+        CP1252 (Windows-1252) als Fallback verwendet - dieses Encoding
+        deckt Latin-1 und alle westeuropaeischen Sonderzeichen verlustfrei
+        ab. Schlaegt auch CP1252 fehl oder enthaelt das Ergebnis verdaechtig
+        viele Kontrollzeichen, wird eine Exception geworfen.
+        """
         # Python-Encoding-Namen anpassen
         encoding_map = {
             "UTF-8": "utf-8-sig",  # BOM automatisch entfernen
@@ -180,13 +158,56 @@ class MarkdownDocument:
         }
         python_encoding = encoding_map.get(sEncoding, sEncoding.lower())
 
+        with open(sFilePath, 'rb') as f:
+            raw = f.read()
+
+        # Primaerversuch: erkanntes Encoding
         try:
-            with open(sFilePath, 'r', encoding=python_encoding) as f:
-                return f.read()
+            return raw.decode(python_encoding)
         except UnicodeDecodeError:
-            # Fallback
-            with open(sFilePath, 'r', encoding='utf-8', errors='replace') as f:
-                return f.read()
+            pass
+
+        # Stufe 1: CP1252-Fallback fuer Latin-1 / Windows-1252
+        try:
+            text = raw.decode('cp1252')
+        except UnicodeDecodeError:
+            log_and_raise(
+                f"Datei '{sFilePath}' kann weder als {sEncoding} noch als CP1252 "
+                f"dekodiert werden. Unbekanntes Encoding - bitte Datei als UTF-8 "
+                f"(mit BOM) speichern."
+            )
+            return ""  # unreachable, log_and_raise wirft Exception
+
+        # Stufe 2: Plausibilitaetspruefung - zu viele Kontrollzeichen deuten
+        # auf ein falsches Encoding hin (z.B. UTF-16 ohne BOM)
+        if self._has_suspicious_control_chars(text):
+            log_and_raise(
+                f"Datei '{sFilePath}' wurde als CP1252 dekodiert, aber das Ergebnis "
+                f"enthaelt ungewoehnlich viele Kontrollzeichen (vermutlich UTF-16 "
+                f"ohne BOM oder exotisches Encoding). Bitte Datei als UTF-8 speichern."
+            )
+
+        log_msg(
+            f"Datei '{sFilePath}' konnte nicht als {sEncoding} gelesen werden - "
+            f"CP1252-Fallback verwendet."
+        )
+        return text
+
+    def _has_suspicious_control_chars(self, text: str) -> bool:
+        """Heuristik: Mehr als 1% Kontrollzeichen deuten auf falsches Encoding hin.
+
+        Normale Texte enthalten praktisch nur Tab, Newline und Carriage Return
+        als Kontrollzeichen. Andere Bytes < 0x20 sind ein starkes Indiz dafuer,
+        dass die Datei mit dem falschen Encoding dekodiert wurde (z.B. UTF-16
+        ohne BOM, das als CP1252 gelesen wird, produziert NULL-Bytes).
+        """
+        if not text:
+            return False
+        control_count = sum(
+            1 for c in text
+            if ord(c) < 0x20 and c not in ('\t', '\n', '\r')
+        )
+        return (control_count / len(text)) > 0.01
 
     def parse_line(self, sLine: str) -> None:
         """Verarbeitet eine einzelne Zeile."""
