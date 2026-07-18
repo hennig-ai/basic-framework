@@ -9,7 +9,7 @@ import configparser
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from .logging import log_and_raise, log_msg
+from .logging_fallback import log_and_raise, log_msg
 
 # Forward import to avoid circular dependency
 

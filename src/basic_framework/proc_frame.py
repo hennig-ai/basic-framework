@@ -549,7 +549,7 @@ def log_msg(msg: str, obj: Any = None) -> None:
         _default_logger.log_msg(msg, caller_frame_offset=2)
     else:
         # Fallback to simple logging if not initialized
-        from .logging import log_msg as simple_log_msg
+        from .logging_fallback import log_msg as simple_log_msg
         simple_log_msg(msg)
 
 
@@ -578,7 +578,7 @@ def log_and_raise(error: Union[str, Exception]) -> NoReturn:
         _default_logger.log_and_raise(error, caller_frame_offset=2)
     else:
         # Fallback to simple logging if not initialized
-        from .logging import log_and_raise as simple_log_and_raise
+        from .logging_fallback import log_and_raise as simple_log_and_raise
         if isinstance(error, Exception):
             simple_log_and_raise(str(error), error)
         else:
