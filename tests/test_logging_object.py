@@ -97,6 +97,36 @@ class TestLoggingObjectInit:
 
         assert "error_log_auto_copy_dir" in str(exc_info.value)
 
+    def test_init_level_above_error_raises(self, temp_log_dir: Path) -> None:
+        """Test that level > logging.ERROR raises ValueError - errors must always be logged."""
+        import logging
+
+        from basic_framework.logging_object import LoggingObject
+
+        with pytest.raises(ValueError) as exc_info:
+            LoggingObject(
+                app_name="TestApp",
+                app_version="1.0.0",
+                log_dir=str(temp_log_dir),
+                level=logging.CRITICAL,
+            )
+
+        assert "level" in str(exc_info.value)
+
+    def test_init_level_error_is_allowed(self, temp_log_dir: Path) -> None:
+        """Test that level=logging.ERROR (the highest allowed setting) is accepted."""
+        import logging
+
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp",
+            app_version="1.0.0",
+            log_dir=str(temp_log_dir),
+            level=logging.ERROR,
+        )
+        logger.close()
+
 
 class TestLoggingObjectProperties:
     """Tests for LoggingObject properties."""
@@ -394,6 +424,167 @@ class TestLoggingObjectClose:
         logger.close()
         # Should not raise
         logger.close()
+
+
+class TestLoggingObjectLogLevelFamily:
+    """Tests for log_debug/log_info/log_warning/log_error and log_msg(level=...)."""
+
+    def test_log_debug_writes_to_file(self, temp_log_dir: Path) -> None:
+        """Test that log_debug writes to the log file (default level allows it)."""
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir), console_output=False,
+        )
+        log_path = logger.log_filepath
+        logger.log_debug("Debug message")
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert "Debug message" in content
+
+    def test_log_info_writes_to_file(self, temp_log_dir: Path) -> None:
+        """Test that log_info writes to the log file."""
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir), console_output=False,
+        )
+        log_path = logger.log_filepath
+        logger.log_info("Info message")
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert "Info message" in content
+
+    def test_log_warning_writes_to_file(self, temp_log_dir: Path) -> None:
+        """Test that log_warning writes to the log file."""
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir), console_output=False,
+        )
+        log_path = logger.log_filepath
+        logger.log_warning("Warning message")
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert "Warning message" in content
+
+    def test_debug_info_warning_suppressed_when_error_only(self, temp_log_dir: Path) -> None:
+        """Test that error_only=True suppresses log_debug/log_info/log_warning."""
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir),
+            console_output=False, error_only=True,
+        )
+        log_path = logger.log_filepath
+        logger.log_debug("should be suppressed (debug)")
+        logger.log_info("should be suppressed (info)")
+        logger.log_warning("should be suppressed (warning)")
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert content == ""
+
+    def test_log_msg_level_parameter(self, temp_log_dir: Path) -> None:
+        """Test that log_msg(level=...) writes with the given level."""
+        from basic_framework.logging_object import LoggingObject
+        import logging
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir), console_output=False,
+        )
+        log_path = logger.log_filepath
+        logger.log_msg("Explicit warning level", level=logging.WARNING)
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert "Explicit warning level" in content
+
+    def test_log_msg_is_error_takes_precedence_over_level(self, temp_log_dir: Path) -> None:
+        """Test that is_error=True forces ERROR level regardless of `level`,
+        so pre-existing is_error=True call sites are unaffected by adding `level`."""
+        from basic_framework.logging_object import LoggingObject
+        import logging
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir),
+            console_output=False, error_only=True,
+        )
+        log_path = logger.log_filepath
+        # error_only raises the threshold to ERROR - a DEBUG-tagged level=... call
+        # would normally be suppressed, but is_error=True must force it through.
+        logger.log_msg("Forced error via is_error", level=logging.DEBUG, is_error=True)
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert "Forced error via is_error" in content
+
+
+class TestLoggingObjectLogError:
+    """Tests for LoggingObject.log_error() - archives like log_and_raise(), does not raise."""
+
+    def test_log_error_does_not_raise(self, temp_log_dir: Path) -> None:
+        """Test that log_error with a string does not raise."""
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir), console_output=False,
+        )
+        log_path = logger.log_filepath
+        logger.log_error("Recoverable problem")  # must not raise
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert "Recoverable problem" in content
+
+    def test_log_error_with_exception_does_not_raise_and_includes_stacktrace(
+        self, temp_log_dir: Path
+    ) -> None:
+        """Test that log_error with an Exception logs the stack trace and does not raise."""
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir), console_output=False,
+        )
+        log_path = logger.log_filepath
+
+        try:
+            raise RuntimeError("boom")
+        except RuntimeError as e:
+            logger.log_error(e)  # must not raise
+
+        logger.close()
+
+        assert log_path is not None
+        content = Path(log_path).read_text(encoding="utf-8")
+        assert "boom" in content
+        assert "Stack Trace" in content
+
+    def test_log_error_triggers_copy_on_error(self, temp_log_dir: Path) -> None:
+        """Test that log_error triggers the same archiving mechanism as log_and_raise."""
+        from basic_framework.logging_object import LoggingObject
+
+        logger = LoggingObject(
+            app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir),
+            console_output=False, copy_on_error=True, error_log_dir="errors",
+        )
+        logger.log_error("Archive this")
+        logger.close()
+
+        error_dir = temp_log_dir / "errors"
+        assert error_dir.exists()
+        subdirs = list(error_dir.iterdir())
+        assert len(subdirs) == 1
 
 
 class TestLoggingObjectErrorLogCopies:

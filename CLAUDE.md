@@ -42,7 +42,9 @@ Also exported at package level: Markdown handling (`MarkdownDocument`, `Markdown
 **Key patterns:**
 - Applications bracket execution with `proc_frame_start()` / `proc_frame_end()` — this initializes logging, config, and single-instance locking
 - `proc_frame` uses module-level singletons (`_default_logger`, `_ini_config_file`, `_ini_pars`) for global state, thread-safe via GIL
-- `log_msg()`/`log_and_raise()` auto-detect caller class/method for CSV log entries: method/line come from stdlib's `stacklevel` parameter, class name from a small dedicated frame-walk (`_caller_classname()` in `logging_object.py`) — both are driven by the same `caller_frame_offset` value threaded through each wrapper layer
+- `log_msg()`/`log_debug()`/`log_info()`/`log_warning()`/`log_error()`/`log_and_raise()` auto-detect caller class/method for CSV log entries: method/line come from stdlib's `stacklevel` parameter, class name from a small dedicated frame-walk (`_caller_classname()` in `logging_object.py`) — both are driven by the same `caller_frame_offset` value threaded through each wrapper layer
+- `log_debug`/`log_info`/`log_warning` are thin facades over `log_msg(level=...)`; `log_error`/`log_and_raise` share message-building (`_build_error_message()`) and the copy-on-error trigger (`archive=True` on the shared `_log()` core) — `log_error` does not raise or beep, `log_and_raise` does both. All six funnel through `LoggingObject._log()`
+- `LoggingObject(level=...)` / INI `[logging] level` set the global threshold (`DEBUG`/`INFO`/`WARNING`/`ERROR`, case-insensitive in the INI). Deliberately capped at `ERROR` — both `LoggingObject.__init__` and `proc_frame._parse_log_level()` reject anything higher (e.g. `CRITICAL`) — errors must always be logged, so exceeding `ERROR` is a configuration error, not a silently-honored setting. `error_only=True` still overrides `level` (forces `ERROR` regardless)
 - **Two logging modules exist:** the public `log_msg`/`log_and_raise` (in `proc_frame.py`, re-exported at package level) do full frame-inspecting CSV file logging. A second, console-only pair in `logging_fallback.py` exists *solely* to break circular imports for low-level modules — do not export or import it from application code; always use the package-level functions
 - INI sections support inheritance via `parent_section` parameter (child overrides parent values)
 - Container/Iterator pattern: `AbstractContainer` → `create_new_iterator()` → `AbstractIterator` with condition-based filtering
@@ -57,7 +59,7 @@ from basic_framework import log_msg, IniConfigFile, ConditionEquals
 
 **API Stability** — do not change existing function names or signatures.
 
-**Frame Inspection** — `log_msg()`/`log_and_raise()` resolve the caller's class via a dedicated frame-walk (`_caller_classname()`) and the caller's method/line via stdlib's `stacklevel` parameter — both keyed off the same `caller_frame_offset`. Do not add a wrapper function without incrementing `caller_frame_offset` by exactly 1 at that layer, or both mechanisms will misattribute the caller by one frame. Phase 1 of the stdlib-logging migration (see `docs/internal/LOGGING_MIGRATION_KONZEPT.md`) is implemented; further phases (log levels, rotation, per-module logger hierarchy) remain planned.
+**Frame Inspection** — `log_msg()`/`log_debug()`/`log_info()`/`log_warning()`/`log_error()`/`log_and_raise()` resolve the caller's class via a dedicated frame-walk (`_caller_classname()`) and the caller's method/line via stdlib's `stacklevel` parameter — both keyed off the same `caller_frame_offset`. Do not add a wrapper function without incrementing `caller_frame_offset` by exactly 1 at that layer, or both mechanisms will misattribute the caller by one frame. Phase 1 of the stdlib-logging migration (see `docs/internal/LOGGING_MIGRATION_KONZEPT.md`) is implemented, plus a per-call log-level family (`log_debug`/`log_info`/`log_warning`/`log_error`, and `log_msg(level=...)`) and an INI-configurable global level threshold (`[logging] level`, capped at `ERROR`) on top of it; further phases (log rotation, per-module logger hierarchy) remain planned.
 
 **Platform-Specific:**
 - Audio: `winsound` on Windows, terminal bell on Linux/Mac
@@ -71,4 +73,4 @@ Set `BASIC_FRAMEWORK_DISABLE_BEEP=1` BEFORE importing `basic_framework.proc_fram
 
 ## Known Limitations
 
-- Internally backed by stdlib `logging` (Phase 1 of the migration, see `docs/internal/LOGGING_MIGRATION_KONZEPT.md`), but the public API still exposes no per-call log levels (only the constructor-time `error_only` flag), no rotation, and no configurable output format — these remain planned for later migration phases
+- Internally backed by stdlib `logging` (Phase 1 of the migration, see `docs/internal/LOGGING_MIGRATION_KONZEPT.md`), with a per-call log-level family (`log_debug`/`log_info`/`log_warning`/`log_error`/`log_and_raise`, `log_msg(level=...)`) and an INI-configurable global level threshold (`[logging] level = DEBUG|INFO|WARNING|ERROR`) on top of it. Still missing: log rotation, configurable output format, and per-module logger hierarchy — these remain planned for later migration phases

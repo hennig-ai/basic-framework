@@ -471,6 +471,144 @@ console_output = true
         proc_frame._release_process_lock()
 
 # =============================================================================
+# Log Level Configuration Tests
+# =============================================================================
+
+
+class TestLogLevelConfiguration:
+    """Tests for the [logging] level INI parameter."""
+
+    def test_level_warning_suppresses_debug_and_info(
+        self,
+        temp_dir: Path,
+        reset_proc_frame_state: None,
+        mock_sys_exit: List[int],
+    ) -> None:
+        """Test that level=WARNING suppresses log_debug/log_info but not log_warning/log_error."""
+        config_path = temp_dir / "config.ini"
+
+        config_path.write_text(
+            """[default]
+single_instance = false
+
+[logging]
+console_output = false
+level = WARNING
+""",
+            encoding="utf-8",
+        )
+
+        proc_frame.proc_frame_start("test_app", "1.0.0", str(config_path))
+        proc_frame.log_debug("debug should be suppressed")
+        proc_frame.log_info("info should be suppressed")
+        proc_frame.log_warning("warning should appear")
+        proc_frame.log_error("error should appear")
+
+        logs_dir = temp_dir / "logs"
+        log_files = list(logs_dir.glob("test_app_log_*.txt"))
+        content = log_files[0].read_text(encoding="utf-8")
+
+        assert "debug should be suppressed" not in content
+        assert "info should be suppressed" not in content
+        assert "warning should appear" in content
+        assert "error should appear" in content
+
+        proc_frame.close_log()
+        proc_frame._release_process_lock()
+
+    def test_level_error_still_logs_errors(
+        self,
+        temp_dir: Path,
+        reset_proc_frame_state: None,
+        mock_sys_exit: List[int],
+    ) -> None:
+        """Test that level=ERROR (the highest allowed setting) still logs errors."""
+        config_path = temp_dir / "config.ini"
+
+        config_path.write_text(
+            """[default]
+single_instance = false
+
+[logging]
+console_output = false
+level = ERROR
+""",
+            encoding="utf-8",
+        )
+
+        proc_frame.proc_frame_start("test_app", "1.0.0", str(config_path))
+        proc_frame.log_warning("should be suppressed")
+        proc_frame.log_error("should still be logged")
+
+        logs_dir = temp_dir / "logs"
+        log_files = list(logs_dir.glob("test_app_log_*.txt"))
+        content = log_files[0].read_text(encoding="utf-8")
+
+        assert "should be suppressed" not in content
+        assert "should still be logged" in content
+
+        proc_frame.close_log()
+        proc_frame._release_process_lock()
+
+    def test_invalid_level_value_raises(
+        self,
+        temp_dir: Path,
+        reset_proc_frame_state: None,
+    ) -> None:
+        """Test that an invalid [logging] level value raises ValueError.
+
+        Covers both a nonsense value and CRITICAL, which is deliberately not
+        an allowed configuration - errors must always be logged, so nothing
+        higher than ERROR is offered as a valid threshold.
+        """
+        config_path = temp_dir / "config.ini"
+
+        config_path.write_text(
+            """[default]
+single_instance = false
+
+[logging]
+level = CRITICAL
+""",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="level"):
+            proc_frame.proc_frame_start("test_app", "1.0.0", str(config_path))
+
+    def test_default_level_unset_behaves_as_before(
+        self,
+        temp_dir: Path,
+        reset_proc_frame_state: None,
+        mock_sys_exit: List[int],
+    ) -> None:
+        """Test that omitting [logging] level keeps today's default (everything through)."""
+        config_path = temp_dir / "config.ini"
+
+        config_path.write_text(
+            """[default]
+single_instance = false
+
+[logging]
+console_output = false
+""",
+            encoding="utf-8",
+        )
+
+        proc_frame.proc_frame_start("test_app", "1.0.0", str(config_path))
+        proc_frame.log_debug("debug still appears by default")
+
+        logs_dir = temp_dir / "logs"
+        log_files = list(logs_dir.glob("test_app_log_*.txt"))
+        content = log_files[0].read_text(encoding="utf-8")
+
+        assert "debug still appears by default" in content
+
+        proc_frame.close_log()
+        proc_frame._release_process_lock()
+
+
+# =============================================================================
 # proc_frame_end Tests
 # =============================================================================
 

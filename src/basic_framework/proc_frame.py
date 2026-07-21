@@ -2,6 +2,7 @@
 Process framework, logging functionality and global INI parameters.
 """
 
+import logging
 import os
 import sys
 from typing import Optional, Any, Dict, NoReturn, Union
@@ -20,6 +21,37 @@ else:
 # Constants for INI parameters
 C_TMP_DIR = "tmp_dir"
 C_SINGLE_INSTANCE = "single_instance"
+
+# Allowed values for the [logging] "level" INI parameter. Deliberately caps
+# at ERROR - errors must always be logged, so CRITICAL (or anything above
+# ERROR) is not an offered option, rather than relying on callers to avoid it.
+_LOG_LEVEL_NAMES: Dict[str, int] = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+}
+
+
+def _parse_log_level(level_str: str) -> int:
+    """Parse the [logging] "level" INI value into a logging module level int.
+
+    Args:
+        level_str: One of "DEBUG", "INFO", "WARNING", "ERROR" (case-insensitive).
+
+    Returns:
+        The corresponding logging.DEBUG/INFO/WARNING/ERROR int constant.
+
+    Raises:
+        ValueError: If level_str is not one of the allowed names.
+    """
+    normalized = level_str.strip().upper()
+    if normalized not in _LOG_LEVEL_NAMES:
+        log_and_raise(
+            f"Config parameter 'level' in section [logging] has invalid value '{level_str}'. "
+            f"Expected one of: {', '.join(_LOG_LEVEL_NAMES)}"
+        )
+    return _LOG_LEVEL_NAMES[normalized]
 
 # Module-level variables for logging
 _default_logger: Optional[LoggingObject] = None
@@ -433,6 +465,9 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         error_log_dir = _read_string_config("error_log_dir", "logging", "errors")
         error_log_auto_copy_dir = _read_string_config("error_log_auto_copy_dir", "logging", None)
         _beep_on_end = _read_bool_config("beep_on_end", "logging", False)
+        level_str = _read_string_config("level", "logging", "DEBUG")
+        assert level_str is not None
+        level = _parse_log_level(level_str)
         # INI error_only overrides parameter (if set in INI, it wins)
         if _read_bool_config("error_only", "logging", False):
             error_only = True
@@ -475,6 +510,7 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
             error_log_dir=error_log_dir if error_log_dir else "errors",
             error_log_auto_copy_dir=error_log_auto_copy_dir,
             error_only=error_only,
+            level=level,
         )
     else:
         # --- Console-only mode: no INI, no file logging ---
@@ -530,7 +566,7 @@ def get_default_logger() -> Optional[LoggingObject]:
     return _default_logger
 
 
-def log_msg(msg: str, obj: Any = None) -> None:
+def log_msg(msg: str, obj: Any = None, *, is_error: bool = False, level: int = logging.INFO) -> None:
     """Log a message with timestamp and caller information.
 
     Delegates to the default LoggingObject if initialized, otherwise falls back
@@ -539,6 +575,9 @@ def log_msg(msg: str, obj: Any = None) -> None:
     Args:
         msg (str): The message to log.
         obj (Any, optional): Legacy parameter for object context. Not currently used.
+        is_error: If True, console output is printed in red. Equivalent to
+            level=logging.ERROR; takes precedence over `level` if both are given.
+        level: Standard library log level (logging.DEBUG/INFO/WARNING/ERROR/CRITICAL).
 
     Note:
         Uses frame inspection to automatically determine the calling method and class.
@@ -546,11 +585,49 @@ def log_msg(msg: str, obj: Any = None) -> None:
     """
     if _default_logger is not None:
         # caller_frame_offset=2: log_msg -> LoggingObject.log_msg -> actual caller
-        _default_logger.log_msg(msg, caller_frame_offset=2)
+        _default_logger.log_msg(msg, caller_frame_offset=2, is_error=is_error, level=level)
     else:
         # Fallback to simple logging if not initialized
         from .logging_fallback import log_msg as simple_log_msg
         simple_log_msg(msg)
+
+
+def log_debug(msg: str) -> None:
+    """Log a DEBUG-level message. See log_msg() for details."""
+    if _default_logger is not None:
+        _default_logger.log_debug(msg, caller_frame_offset=2)
+    else:
+        from .logging_fallback import log_msg as simple_log_msg
+        simple_log_msg(msg)
+
+
+def log_info(msg: str) -> None:
+    """Log an INFO-level message. See log_msg() for details."""
+    if _default_logger is not None:
+        _default_logger.log_info(msg, caller_frame_offset=2)
+    else:
+        from .logging_fallback import log_msg as simple_log_msg
+        simple_log_msg(msg)
+
+
+def log_warning(msg: str) -> None:
+    """Log a WARNING-level message. See log_msg() for details."""
+    if _default_logger is not None:
+        _default_logger.log_warning(msg, caller_frame_offset=2)
+    else:
+        from .logging_fallback import log_msg as simple_log_msg
+        simple_log_msg(msg)
+
+
+def log_error(error: Union[str, Exception]) -> None:
+    """Log an ERROR-level message or Exception and archive the log file for
+    later analysis - WITHOUT raising. See LoggingObject.log_error() for details.
+    """
+    if _default_logger is not None:
+        _default_logger.log_error(error, caller_frame_offset=2)
+    else:
+        from .logging_fallback import log_msg as simple_log_msg
+        simple_log_msg(str(error))
 
 
 def log_and_raise(error: Union[str, Exception]) -> NoReturn:

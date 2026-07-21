@@ -152,6 +152,49 @@ class TestConsoleOnlyNoFileLogging:
         assert proc_frame.get_log_filename() == ""
 
 
+class TestConsoleOnlyLogLevelFamily:
+    """Tests for the log_debug/log_info/log_warning/log_error package-level wrappers."""
+
+    def test_log_debug_writes_correct_caller(self, capsys) -> None:
+        """Test that log_debug reports the correct caller class/method."""
+        proc_frame.proc_frame_start("test_app", "1.0.0")
+
+        class Worker:
+            def run(self) -> None:
+                proc_frame.log_debug("debug from Worker.run")
+
+        Worker().run()
+        captured = capsys.readouterr()
+        log_line = captured.out.strip().split("\n")[-1]
+        fields = log_line.split(";")
+        assert fields[6] == "Worker"
+        assert fields[7] == "run"
+
+    def test_log_info_writes_to_console(self, capsys) -> None:
+        """Test that log_info produces console output."""
+        proc_frame.proc_frame_start("test_app", "1.0.0")
+
+        proc_frame.log_info("info message")
+        captured = capsys.readouterr()
+        assert "info message" in captured.out
+
+    def test_log_warning_writes_to_console(self, capsys) -> None:
+        """Test that log_warning produces console output."""
+        proc_frame.proc_frame_start("test_app", "1.0.0")
+
+        proc_frame.log_warning("warning message")
+        captured = capsys.readouterr()
+        assert "warning message" in captured.out
+
+    def test_log_error_does_not_raise(self, capsys) -> None:
+        """Test that log_error logs but does not raise, unlike log_and_raise."""
+        proc_frame.proc_frame_start("test_app", "1.0.0")
+
+        proc_frame.log_error("recoverable problem")  # must not raise
+        captured = capsys.readouterr()
+        assert "recoverable problem" in captured.out
+
+
 class TestConsoleOnlyLogAndRaise:
     """Tests for log_and_raise in console-only mode."""
 

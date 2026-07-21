@@ -117,3 +117,8 @@ Logdateien/
 .claude/
 nulltxt.txt
 docs/internal/
+pyright_output_final.txt
+test_output_final.txt
+pyright_output4.txt
+test_output5.txt
+test_output6.txt

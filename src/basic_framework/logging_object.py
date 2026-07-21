@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 import traceback
-from typing import NoReturn, Optional, Union
+from typing import Dict, NoReturn, Optional, Union
 
 from .utils.basic_utils import get_format_now_stamp
 from .csv_log_formatter import CSV_LOG_HEADER, AppContextFilter, CsvLogFormatter
@@ -72,6 +72,7 @@ class LoggingObject:
         error_log_dir: str = "errors",
         error_log_auto_copy_dir: Optional[str] = None,
         error_only: bool = False,
+        level: int = logging.DEBUG,
     ) -> None:
         """
         Initialize the LoggingObject.
@@ -90,11 +91,20 @@ class LoggingObject:
             error_log_auto_copy_dir: Optional auto-copy directory for error logs.
                                      Ignored when log_dir is None.
             error_only: If True, log_msg() is silenced and only log_and_raise()
-                        writes output. Not changeable at runtime.
+                        writes output. Not changeable at runtime. Takes
+                        precedence over `level` (forces the effective level to
+                        logging.ERROR regardless of what `level` is).
+            level: Global threshold below which log_msg()/log_debug()/
+                   log_info()/log_warning() calls are suppressed (e.g.
+                   logging.WARNING silences DEBUG/INFO). Must not exceed
+                   logging.ERROR - errors must always be logged, so ERROR is
+                   the highest configurable threshold. Not changeable at
+                   runtime.
 
         Raises:
             ValueError: If app_name or app_version is empty.
             ValueError: If error_log_auto_copy_dir is specified but does not exist.
+            ValueError: If level is higher than logging.ERROR.
         """
         # Validation (CLAUDE.md: No graceful degradation)
         if not app_name:
@@ -105,6 +115,11 @@ class LoggingObject:
             raise ValueError(
                 f"error_log_auto_copy_dir '{error_log_auto_copy_dir}' "
                 f"does not exist or is not a directory"
+            )
+        if level > logging.ERROR:
+            raise ValueError(
+                f"level must not exceed logging.ERROR ({logging.ERROR}) - "
+                f"errors must always be logged, got {level}"
             )
 
         self._app_name: str = app_name
@@ -117,7 +132,7 @@ class LoggingObject:
         # Two independent LoggingObject instances must never share handlers.
         self._logger = logging.Logger(
             f"basic_framework.LoggingObject.{id(self):x}",
-            level=logging.ERROR if error_only else logging.DEBUG,
+            level=logging.ERROR if error_only else level,
         )
         self._logger.propagate = False
         self._logger.addFilter(AppContextFilter(app_name, app_version))
@@ -153,7 +168,11 @@ class LoggingObject:
         if console_output:
             self._logger.addHandler(self._console_handler)
 
-        if not error_only:
+        # Lazy header: if the effective threshold suppresses INFO (error_only,
+        # or level=WARNING/ERROR), don't write a header until something is
+        # actually emitted - avoids a header-only file/console when nothing
+        # routine ever gets logged.
+        if self._logger.isEnabledFor(logging.INFO):
             if self._file_handler is not None:
                 self._file_handler.ensure_header()
             if console_output:
@@ -194,7 +213,12 @@ class LoggingObject:
         self._console_output = value
 
     def log_msg(
-        self, msg: str, caller_frame_offset: int = 1, *, is_error: bool = False
+        self,
+        msg: str,
+        caller_frame_offset: int = 1,
+        *,
+        is_error: bool = False,
+        level: int = logging.INFO,
     ) -> None:
         """
         Log a message with timestamp and caller information.
@@ -203,19 +227,48 @@ class LoggingObject:
             msg: The message to log.
             caller_frame_offset: Number of frames to go back for caller info.
                 Default is 1 (direct caller). Use 2 when called from a wrapper.
-            is_error: If True, console output is printed in red.
+            is_error: If True, console output is printed in red. Equivalent to
+                level=logging.ERROR; takes precedence over `level` if both are
+                given, preserving pre-existing call sites unchanged.
+            level: Standard library log level (logging.DEBUG/INFO/WARNING/
+                ERROR/CRITICAL). Ignored if is_error=True.
 
         Note:
-            Does NOT trigger the copy-on-error mechanism, even if is_error=True -
-            only log_and_raise() does that. Matches historical behavior.
+            Does NOT trigger the copy-on-error mechanism, even at ERROR level -
+            only log_error()/log_and_raise() do that. Matches historical behavior.
         """
-        level = logging.ERROR if is_error else logging.INFO
-        if not self._logger.isEnabledFor(level):
-            return
-        classinfo = _caller_classname(caller_frame_offset + 1)
-        self._logger.log(
-            level, msg, stacklevel=caller_frame_offset + 1, extra={"classinfo": classinfo}
-        )
+        resolved_level = logging.ERROR if is_error else level
+        self._log(resolved_level, msg, caller_frame_offset + 1)
+
+    def log_debug(self, msg: str, caller_frame_offset: int = 1) -> None:
+        """Log a DEBUG-level message. Facade over log_msg(level=logging.DEBUG)."""
+        self.log_msg(msg, caller_frame_offset + 1, level=logging.DEBUG)
+
+    def log_info(self, msg: str, caller_frame_offset: int = 1) -> None:
+        """Log an INFO-level message. Facade over log_msg(level=logging.INFO)."""
+        self.log_msg(msg, caller_frame_offset + 1, level=logging.INFO)
+
+    def log_warning(self, msg: str, caller_frame_offset: int = 1) -> None:
+        """Log a WARNING-level message. Facade over log_msg(level=logging.WARNING)."""
+        self.log_msg(msg, caller_frame_offset + 1, level=logging.WARNING)
+
+    def log_error(self, error: Union[str, Exception], caller_frame_offset: int = 1) -> None:
+        """
+        Log an ERROR-level message or Exception (with optional stack trace) and
+        trigger the copy-on-error archiving mechanism - WITHOUT raising.
+
+        Args:
+            error: Error message string or Exception object.
+            caller_frame_offset: Number of frames to go back for caller info.
+
+        Note:
+            Shares message formatting and the archiving trigger with
+            log_and_raise(); the only difference is that this does not raise.
+            Does NOT beep - log_and_raise()'s beep signals flow interruption,
+            which this does not cause (may be called repeatedly, e.g. in a loop).
+        """
+        complete_msg = self._build_error_message(error)
+        self._log(logging.ERROR, complete_msg, caller_frame_offset + 1, archive=True)
 
     def log_and_raise(self, error: Union[str, Exception], caller_frame_offset: int = 1) -> NoReturn:
         """
@@ -231,14 +284,12 @@ class LoggingObject:
         # Import beep function at call time to avoid circular imports
         from .proc_frame import beep_tone_error
 
+        complete_msg = self._build_error_message(error)
+        self._log(logging.ERROR, complete_msg, caller_frame_offset + 1, archive=True)
+        beep_tone_error()
         if isinstance(error, Exception):
-            self._log_exception(error, caller_frame_offset + 1)
-            beep_tone_error()
             raise error
-        else:
-            self._log_error_string(error, caller_frame_offset + 1)
-            beep_tone_error()
-            raise ValueError(error)
+        raise ValueError(error)
 
     def close(self) -> None:
         """Close all handlers and detach them from the logger."""
@@ -253,47 +304,36 @@ class LoggingObject:
         self._file_handler = None
         self._error_handler = None
 
-    def _log_exception(self, exception: Exception, caller_frame_offset: int) -> None:
-        """
-        Log an exception with stack trace.
+    def _build_error_message(self, error: Union[str, Exception]) -> str:
+        """Builds the tagged error message text, with optional stack trace for Exceptions."""
+        if isinstance(error, Exception):
+            exc_msg: str = str(error)
+            exc_type_name: str = type(error).__name__
+            complete_msg: str = f"[EXCEPTION_ERROR] [{exc_type_name}] {exc_msg}"
+            if self._include_stacktrace and error.__traceback__ is not None:
+                stack_trace: str = ''.join(traceback.format_exception(
+                    type(error), error, error.__traceback__
+                ))
+                complete_msg = f"{complete_msg}\n\n{'='*60}\nStack Trace:\n{'='*60}\n{stack_trace}"
+            return complete_msg
+        return f"[EXCEPTION_ERROR] {error}"
+
+    def _log(self, level: int, msg: str, caller_frame_offset: int, *, archive: bool = False) -> None:
+        """Core logging primitive shared by log_msg/log_debug/log_info/log_warning/
+        log_error/log_and_raise: level-gates, resolves the caller's class, emits.
 
         Args:
-            exception: The exception to log.
-            caller_frame_offset: Frame offset for caller info.
+            level: Standard library log level.
+            msg: Fully-formatted message text.
+            caller_frame_offset: Frame offset for caller info, as seen from
+                this method's own frame.
+            archive: If True, flags the record so ErrorCopyHandler copies the
+                log file (used only by log_error/log_and_raise).
         """
-        exc_msg: str = str(exception)
-        exc_type_name: str = type(exception).__name__
-
-        complete_msg: str = f"[EXCEPTION_ERROR] [{exc_type_name}] {exc_msg}"
-
-        if self._include_stacktrace and exception.__traceback__ is not None:
-            stack_trace: str = ''.join(traceback.format_exception(
-                type(exception),
-                exception,
-                exception.__traceback__
-            ))
-            complete_msg = f"{complete_msg}\n\n{'='*60}\nStack Trace:\n{'='*60}\n{stack_trace}"
-
-        self._emit_error(complete_msg, caller_frame_offset + 1)
-
-    def _log_error_string(self, msg: str, caller_frame_offset: int) -> None:
-        """
-        Log an error message string.
-
-        Args:
-            msg: The error message.
-            caller_frame_offset: Frame offset for caller info.
-        """
-        tagged_msg: str = f"[EXCEPTION_ERROR] {msg}"
-        self._emit_error(tagged_msg, caller_frame_offset + 1)
-
-    def _emit_error(self, msg: str, caller_frame_offset: int) -> None:
-        """Log an ERROR-level record flagged for copy-on-error handling."""
-        if not self._logger.isEnabledFor(logging.ERROR):
+        if not self._logger.isEnabledFor(level):
             return
         classinfo = _caller_classname(caller_frame_offset + 1)
-        self._logger.error(
-            msg,
-            stacklevel=caller_frame_offset + 1,
-            extra={"classinfo": classinfo, "is_error_copy": True},
-        )
+        extra: Dict[str, object] = {"classinfo": classinfo}
+        if archive:
+            extra["is_error_copy"] = True
+        self._logger.log(level, msg, stacklevel=caller_frame_offset + 1, extra=extra)
