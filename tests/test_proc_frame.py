@@ -192,6 +192,9 @@ class TestProcFrameStart:
         ini_path.write_text(
             """[default]
 single_instance = false
+
+[logging]
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -216,6 +219,9 @@ single_instance = false
         ini_path.write_text(
             """[default]
 single_instance = false
+
+[logging]
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -233,6 +239,9 @@ single_instance = false
         ini_path.write_text(
             """[default]
 some_other_param = value
+
+[logging]
+level = DEBUG
 """,
             encoding="utf-8",
         )

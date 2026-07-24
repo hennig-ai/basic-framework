@@ -72,6 +72,7 @@ single_instance = false
 [logging]
 console_output = true
 include_stacktrace = true
+level = DEBUG
 """,
         encoding="utf-8",
     )
@@ -95,6 +96,9 @@ class TestMissingRequiredParameters:
         config_path.write_text(
             """[default]
 some_param = value
+
+[logging]
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -114,6 +118,9 @@ some_param = value
         config_path.write_text(
             """[default]
 single_instance =
+
+[logging]
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -132,6 +139,9 @@ single_instance =
         config_path.write_text(
             """[default]
 single_instance = maybe
+
+[logging]
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -205,6 +215,7 @@ single_instance = false
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -239,6 +250,7 @@ custom_param = custom_value
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -271,6 +283,7 @@ single_instance = false
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -299,6 +312,7 @@ single_instance = false
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -346,6 +360,7 @@ single_instance = true
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -377,6 +392,7 @@ single_instance = false
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -415,6 +431,7 @@ single_instance = false
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -450,6 +467,7 @@ single_instance = false
 
 [logging]
 console_output = true
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -477,6 +495,29 @@ console_output = true
 
 class TestLogLevelConfiguration:
     """Tests for the [logging] level INI parameter."""
+
+    def test_stale_error_only_raises(
+        self,
+        temp_dir: Path,
+        reset_proc_frame_state: None,
+    ) -> None:
+        """Test that a leftover [logging] error_only entry fails loudly
+        instead of being silently ignored, since it was removed in favor
+        of `level`."""
+        config_path = temp_dir / "config.ini"
+
+        config_path.write_text(
+            """[default]
+single_instance = false
+
+[logging]
+error_only = true
+""",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="error_only"):
+            proc_frame.proc_frame_start("test_app", "1.0.0", str(config_path))
 
     def test_level_warning_suppresses_debug_and_info(
         self,
@@ -591,6 +632,7 @@ single_instance = false
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -631,6 +673,7 @@ single_instance = false
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -660,6 +703,7 @@ single_instance = true
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -703,6 +747,7 @@ single_instance = {value}
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -733,6 +778,7 @@ single_instance = {value}
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -807,6 +853,7 @@ single_instance = true
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -844,6 +891,7 @@ single_instance = true
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -881,6 +929,7 @@ single_instance = true
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )
@@ -949,6 +998,7 @@ single_instance = true
 
 [logging]
 console_output = false
+level = DEBUG
 """,
             encoding="utf-8",
         )

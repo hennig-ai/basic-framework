@@ -464,9 +464,25 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         error_log_dir = _read_string_config("error_log_dir", "logging", "errors")
         error_log_auto_copy_dir = _read_string_config("error_log_auto_copy_dir", "logging", None)
         _beep_on_end = _read_bool_config("beep_on_end", "logging", False)
-        level_str = _read_string_config("level", "logging", "DEBUG")
-        assert level_str is not None
-        level = _parse_log_level(level_str)
+
+        # error_only was removed in favor of the more general `level` parameter.
+        # Fail loudly instead of silently ignoring a stale config entry.
+        if _ini_config_file.has_option("error_only", "logging"):
+            log_and_raise(
+                "Config parameter 'error_only' in section [logging] was removed. "
+                "Use 'level = ERROR' instead."
+            )
+
+        # level is a required parameter - no silent default (CLAUDE.md: no
+        # graceful degradation). Callers must decide explicitly.
+        if not _ini_config_file.has_option("level", "logging"):
+            log_and_raise("Config parameter 'level' is required in section [logging]")
+
+        level_value = _ini_config_file.get_value("level", "logging")
+        if level_value is None or level_value == "":
+            log_and_raise("Config parameter 'level' cannot be empty")
+
+        level = _parse_log_level(level_value)
 
         # Validate error_log_auto_copy_dir if specified
         if error_log_auto_copy_dir and not os.path.isdir(error_log_auto_copy_dir):
