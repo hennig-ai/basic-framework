@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .abstract_container import AbstractContainer
 from ..conditions.condition import Condition
 
-from ..proc_frame import log_and_raise, log_msg
+from ..proc_frame import log_and_raise, log_info
 
 
 class AbstractIterator:
@@ -125,7 +125,7 @@ class AbstractIterator:
         
         if remainder == current_pos:
             container_name = self.get_technical_container_name()
-            log_msg(f"{container_name},Position {current_pos}: {message}")
+            log_info(f"{container_name},Position {current_pos}: {message}")
 
     def pp(self) -> int:
         """

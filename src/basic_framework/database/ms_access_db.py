@@ -12,7 +12,7 @@ Requirements:
 from typing import Any, List, Tuple, cast
 
 from .abstract_database import AbstractDatabase, DatabaseCursor
-from ..proc_frame import log_and_raise, log_msg
+from ..proc_frame import log_and_raise, log_debug
 
 
 class MSAccessDB(AbstractDatabase):
@@ -76,7 +76,7 @@ class MSAccessDB(AbstractDatabase):
         try:
             self._connection = _pyodbc.connect(connection_string)  # type: ignore[reportUnknownMemberType]
             self._is_connected = True
-            log_msg(f"MS Access Datenbank '{connection_info}' wurde geöffnet.")
+            log_debug(f"MS Access Datenbank '{connection_info}' wurde geöffnet.")
         except Exception as e:
             log_and_raise(type(e)(
                 f"MS Access Verbindung fehlgeschlagen für '{connection_info}': {e}"
@@ -87,7 +87,7 @@ class MSAccessDB(AbstractDatabase):
         Close MS Access database connection.
         """
         if self._is_connected:
-            log_msg(f"MS Access Datenbankverbindung zu '{self._db_path}' wird geschlossen...")
+            log_debug(f"MS Access Datenbankverbindung zu '{self._db_path}' wird geschlossen...")
             self._connection.close()  # type: ignore[reportUnknownMemberType]
             self._is_connected = False
 
@@ -302,7 +302,7 @@ class MSAccessDB(AbstractDatabase):
             ))
 
         self._in_transaction = True
-        log_msg("Transaction gestartet.")
+        log_debug("Transaction gestartet.")
 
     def is_in_transaction(self) -> bool:
         """
@@ -318,14 +318,14 @@ class MSAccessDB(AbstractDatabase):
         self._ensure_connected()
         self._connection.commit()  # type: ignore[reportUnknownMemberType]
         self._in_transaction = False
-        log_msg("Transaction committed.")
+        log_debug("Transaction committed.")
 
     def rollback(self) -> None:
         """Rollback current transaction."""
         self._ensure_connected()
         self._connection.rollback()  # type: ignore[reportUnknownMemberType]
         self._in_transaction = False
-        log_msg("Transaction rollback.")
+        log_debug("Transaction rollback.")
 
     def get_tables(self) -> List[str]:
         """

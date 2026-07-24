@@ -10,7 +10,7 @@ from typing import Any, Collection, Dict, List, Optional, TYPE_CHECKING
 from ..conditions.condition import Condition
 from ..container_utils.abstract_container import AbstractContainer
 from ..container_utils.container_in_memory import ContainerInMemory
-from ..proc_frame import log_and_raise
+from ..proc_frame import log_and_raise, log_debug
 from .abstract_database import AbstractDatabase, DatabaseCursor
 
 if TYPE_CHECKING:
@@ -75,7 +75,7 @@ class DatabaseContainer(AbstractContainer):
         # For SQL queries: load all data immediately into memory
         if self._is_sql_query:
             self._load_all_data()
-        # log_msg(f"DatabaseContainer für '{self._get_display_name()}' initialisiert.")
+        log_debug(f"DatabaseContainer für '{self._get_display_name()}' initialisiert.")
 
     def _detect_sql_query(self, table_or_sql: str) -> bool:
         """

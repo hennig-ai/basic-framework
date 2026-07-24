@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, cast
 # Basic Framework Imports
 from ..container_utils.knot_object import KnotObject
 from ..container_utils.container_in_memory import ContainerInMemory
-from ..proc_frame import log_msg, log_and_raise
+from ..proc_frame import log_debug, log_warning, log_and_raise
 from ..ext_filesystem import file_must_exist
 
 
@@ -93,7 +93,7 @@ class MarkdownDocument:
         # Inhalt parsen
         self.load_from_string(sContent)
 
-        log_msg(f"Markdown-Datei '{sFilePath}' erfolgreich geladen. Encoding: {self.m_FileEncoding}")
+        log_debug(f"Markdown-Datei '{sFilePath}' erfolgreich geladen. Encoding: {self.m_FileEncoding}")
 
     def load_from_string(self, sContent: str) -> None:
         """Parst einen Markdown-String direkt."""
@@ -118,7 +118,7 @@ class MarkdownDocument:
         # Offene Strukturen abschließen
         self.finalize_open_structures()
 
-        log_msg(f"Markdown-String erfolgreich geparst. {self.m_LineCounter} Zeilen verarbeitet.")
+        log_debug(f"Markdown-String erfolgreich geparst. {self.m_LineCounter} Zeilen verarbeitet.")
 
     def detect_encoding(self, sFilePath: str) -> str:
         """Erkennt die Dateikodierung anhand des BOM (Byte Order Mark).
@@ -187,7 +187,7 @@ class MarkdownDocument:
                 f"ohne BOM oder exotisches Encoding). Bitte Datei als UTF-8 speichern."
             )
 
-        log_msg(
+        log_warning(
             f"Datei '{sFilePath}' konnte nicht als {sEncoding} gelesen werden - "
             f"CP1252-Fallback verwendet."
         )
@@ -1063,7 +1063,7 @@ class MarkdownDocument:
         self.m_CurrentTableData = []
         self.m_TableHeaders = []
 
-        log_msg("MarkdownDocument-Ressourcen wurden freigegeben.")
+        log_debug("MarkdownDocument-Ressourcen wurden freigegeben.")
 
     def create_table_dictionary(self) -> Dict[str, ContainerInMemory]:
         """
@@ -1074,7 +1074,7 @@ class MarkdownDocument:
         # Alle Table-Knoten aus dem Dokument abrufen
         oTableNodes = self.get_all_nodes_of_type("Table")
 
-        log_msg(f"Gefundene Table-Knoten: {len(oTableNodes)}")  # Debug-Ausgabe
+        log_debug(f"Gefundene Table-Knoten: {len(oTableNodes)}")
 
         # Durch alle gefundenen Tabellen iterieren
         for i in range(len(oTableNodes)):
@@ -1106,16 +1106,16 @@ class MarkdownDocument:
                         # Zum Dictionary hinzufügen, falls noch nicht vorhanden
                         if sTableName not in oTableDict:
                             oTableDict[sTableName] = oContainer
-                            # log_msg(f"Tabelle '{sTableName}' zum Dictionary hinzugefuegt.")
+                            log_debug(f"Tabelle '{sTableName}' zum Dictionary hinzugefuegt.")
                         else:
-                            log_msg(f"Warnung: Tabelle '{sTableName}' existiert bereits im Dictionary.")
+                            log_warning(f"Warnung: Tabelle '{sTableName}' existiert bereits im Dictionary.")
                     else:
-                        log_msg(f"Warnung: Kein ContainerInMemory fuer Tabelle unter Ueberschrift '{sHeadingText}' gefunden.")
+                        log_warning(f"Warnung: Kein ContainerInMemory fuer Tabelle unter Ueberschrift '{sHeadingText}' gefunden.")
                 else:
-                    log_msg(f"Warnung: Parent-Knoten ist keine Ueberschrift, sondern vom Typ '{oParentNode.m_sName}'")
+                    log_warning(f"Warnung: Parent-Knoten ist keine Ueberschrift, sondern vom Typ '{oParentNode.m_sName}'")
             else:
-                log_msg("Warnung: Table-Knoten ohne Parent-Knoten gefunden.")
+                log_warning("Warnung: Table-Knoten ohne Parent-Knoten gefunden.")
 
         # Ergebnis-Dictionary zurückgeben
-        log_msg(f"Tabellen-Dictionary erstellt mit {len(oTableDict)} Eintraegen.")
+        log_debug(f"Tabellen-Dictionary erstellt mit {len(oTableDict)} Eintraegen.")
         return oTableDict

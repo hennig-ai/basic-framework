@@ -7,6 +7,7 @@ producing structured CSV logging to stdout without file logging.
 
 import os
 import re
+from pathlib import Path
 from typing import Generator
 
 import pytest
@@ -46,7 +47,7 @@ def reset_proc_frame_state() -> Generator[None, None, None]:
 class TestConsoleOnlyInit:
     """Tests for proc_frame_start() without config file."""
 
-    def test_start_without_config(self, capsys) -> None:
+    def test_start_without_config(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that proc_frame_start works without config_file_path."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -76,7 +77,7 @@ class TestConsoleOnlyInit:
 class TestConsoleOnlyLogging:
     """Tests for structured CSV logging to stdout."""
 
-    def test_csv_header_printed_on_init(self, capsys) -> None:
+    def test_csv_header_printed_on_init(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that CSV header line is printed to stdout on init."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -84,7 +85,7 @@ class TestConsoleOnlyLogging:
         lines = captured.out.strip().split("\n")
         assert lines[0] == "Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Message"
 
-    def test_log_msg_csv_format(self, capsys) -> None:
+    def test_log_msg_csv_format(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_msg produces CSV-formatted output on stdout."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -101,7 +102,7 @@ class TestConsoleOnlyLogging:
         assert fields[2] == "1.0.0"
         assert "Hello console" in fields[8]
 
-    def test_log_msg_no_fallback_tag(self, capsys) -> None:
+    def test_log_msg_no_fallback_tag(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that LOGGING_FALLBACK tag is NOT present after init."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -110,7 +111,7 @@ class TestConsoleOnlyLogging:
 
         assert "LOGGING_FALLBACK" not in captured.out
 
-    def test_log_msg_includes_timestamp(self, capsys) -> None:
+    def test_log_msg_includes_timestamp(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that structured log includes proper timestamp."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -119,7 +120,7 @@ class TestConsoleOnlyLogging:
 
         assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", captured.out) is not None
 
-    def test_log_msg_includes_pid(self, capsys) -> None:
+    def test_log_msg_includes_pid(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that structured log includes PID."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -133,7 +134,7 @@ class TestConsoleOnlyLogging:
 class TestConsoleOnlyNoFileLogging:
     """Tests that no log files are created in console-only mode."""
 
-    def test_no_log_file_created(self, tmp_path) -> None:
+    def test_no_log_file_created(self, tmp_path: Path) -> None:
         """Test that no log files or directories are created."""
         original_cwd = os.getcwd()
         os.chdir(tmp_path)
@@ -155,7 +156,7 @@ class TestConsoleOnlyNoFileLogging:
 class TestConsoleOnlyLogLevelFamily:
     """Tests for the log_debug/log_info/log_warning/log_error package-level wrappers."""
 
-    def test_log_debug_writes_correct_caller(self, capsys) -> None:
+    def test_log_debug_writes_correct_caller(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_debug reports the correct caller class/method."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -170,7 +171,7 @@ class TestConsoleOnlyLogLevelFamily:
         assert fields[6] == "Worker"
         assert fields[7] == "run"
 
-    def test_log_info_writes_to_console(self, capsys) -> None:
+    def test_log_info_writes_to_console(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_info produces console output."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -178,7 +179,7 @@ class TestConsoleOnlyLogLevelFamily:
         captured = capsys.readouterr()
         assert "info message" in captured.out
 
-    def test_log_warning_writes_to_console(self, capsys) -> None:
+    def test_log_warning_writes_to_console(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_warning produces console output."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 
@@ -186,7 +187,7 @@ class TestConsoleOnlyLogLevelFamily:
         captured = capsys.readouterr()
         assert "warning message" in captured.out
 
-    def test_log_error_does_not_raise(self, capsys) -> None:
+    def test_log_error_does_not_raise(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_error logs but does not raise, unlike log_and_raise."""
         proc_frame.proc_frame_start("test_app", "1.0.0")
 

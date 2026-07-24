@@ -2,6 +2,10 @@
 Basic import test to ensure all modules can be imported correctly.
 """
 
+# pyright: reportUnusedImport=false
+# The imports in this file ARE the tests - importability is what's being
+# verified, the imported names are intentionally never referenced further.
+
 import unittest
 
 

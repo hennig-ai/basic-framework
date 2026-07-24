@@ -117,8 +117,7 @@ Logdateien/
 .claude/
 nulltxt.txt
 docs/internal/
-pyright_output_final.txt
-test_output_final.txt
-pyright_output4.txt
-test_output5.txt
-test_output6.txt
+test_output*.txt
+pyright_output*.txt
+compileall_output.txt
+build_output.txt

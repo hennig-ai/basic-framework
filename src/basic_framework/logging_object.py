@@ -71,7 +71,6 @@ class LoggingObject:
         copy_on_error: bool = True,
         error_log_dir: str = "errors",
         error_log_auto_copy_dir: Optional[str] = None,
-        error_only: bool = False,
         level: int = logging.DEBUG,
     ) -> None:
         """
@@ -90,16 +89,13 @@ class LoggingObject:
                            Ignored when log_dir is None.
             error_log_auto_copy_dir: Optional auto-copy directory for error logs.
                                      Ignored when log_dir is None.
-            error_only: If True, log_msg() is silenced and only log_and_raise()
-                        writes output. Not changeable at runtime. Takes
-                        precedence over `level` (forces the effective level to
-                        logging.ERROR regardless of what `level` is).
             level: Global threshold below which log_msg()/log_debug()/
                    log_info()/log_warning() calls are suppressed (e.g.
-                   logging.WARNING silences DEBUG/INFO). Must not exceed
-                   logging.ERROR - errors must always be logged, so ERROR is
-                   the highest configurable threshold. Not changeable at
-                   runtime.
+                   logging.WARNING silences DEBUG/INFO; logging.ERROR
+                   silences everything except log_error()/log_and_raise()).
+                   Must not exceed logging.ERROR - errors must always be
+                   logged, so ERROR is the highest configurable threshold.
+                   Not changeable at runtime.
 
         Raises:
             ValueError: If app_name or app_version is empty.
@@ -132,7 +128,7 @@ class LoggingObject:
         # Two independent LoggingObject instances must never share handlers.
         self._logger = logging.Logger(
             f"basic_framework.LoggingObject.{id(self):x}",
-            level=logging.ERROR if error_only else level,
+            level=level,
         )
         self._logger.propagate = False
         self._logger.addFilter(AppContextFilter(app_name, app_version))
@@ -168,10 +164,9 @@ class LoggingObject:
         if console_output:
             self._logger.addHandler(self._console_handler)
 
-        # Lazy header: if the effective threshold suppresses INFO (error_only,
-        # or level=WARNING/ERROR), don't write a header until something is
-        # actually emitted - avoids a header-only file/console when nothing
-        # routine ever gets logged.
+        # Lazy header: if the configured level suppresses INFO (WARNING/ERROR),
+        # don't write a header until something is actually emitted - avoids a
+        # header-only file/console when nothing routine ever gets logged.
         if self._logger.isEnabledFor(logging.INFO):
             if self._file_handler is not None:
                 self._file_handler.ensure_header()

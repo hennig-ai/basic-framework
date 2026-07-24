@@ -10,7 +10,7 @@ import time
 from typing import Any, Callable, List, Tuple, TypeVar
 
 from .abstract_database import AbstractDatabase, DatabaseCursor
-from ..proc_frame import log_and_raise, log_msg
+from ..proc_frame import log_and_raise, log_warning, log_debug
 
 T = TypeVar('T')
 
@@ -64,14 +64,14 @@ class SQLiteDB(AbstractDatabase):
         try:
             self._connection = sqlite3.connect(connection_info)
             self._is_connected = True
-            log_msg(f"SQLite Datenbank '{connection_info}' wurde geöffnet.")
+            log_debug(f"SQLite Datenbank '{connection_info}' wurde geöffnet.")
         except sqlite3.Error as e:
             log_and_raise(sqlite3.Error(f"SQLite Verbindung fehlgeschlagen für '{connection_info}': {e}"))
 
     def close(self) -> None:
         """Close SQLite database connection."""
         if self._is_connected:
-            log_msg(f"SQLite Datenbankverbindung zu '{self._db_path}' wird geschlossen...")
+            log_debug(f"SQLite Datenbankverbindung zu '{self._db_path}' wird geschlossen...")
             self._connection.close()
             self._is_connected = False
 
@@ -241,7 +241,7 @@ class SQLiteDB(AbstractDatabase):
             ))
 
         self._connection.execute("BEGIN IMMEDIATE")
-        log_msg("Transaction gestartet.")
+        log_debug("Transaction gestartet.")
 
     def is_in_transaction(self) -> bool:
         """
@@ -261,13 +261,13 @@ class SQLiteDB(AbstractDatabase):
             lambda: self._connection.commit(),
             "Commit fehlgeschlagen"
         )
-        log_msg("Transaction committed.")
+        log_debug("Transaction committed.")
 
     def rollback(self) -> None:
         """Rollback current transaction."""
         self._ensure_connected()
         self._connection.rollback()
-        log_msg("Transaction rollback.")
+        log_debug("Transaction rollback.")
 
     def get_tables(self) -> List[str]:
         """
@@ -358,7 +358,7 @@ class SQLiteDB(AbstractDatabase):
                 return operation()
             except sqlite3.OperationalError as e:
                 if "database is locked" in str(e) and attempt < self._retry_count - 1:
-                    log_msg(
+                    log_warning(
                         f"Database locked, retry in {self._retry_delay}s "
                         f"({attempt + 1}/{self._retry_count})"
                     )

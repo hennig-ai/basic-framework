@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from .utils.basic_utils import is_hyperlink
-from .proc_frame import log_and_raise, log_msg
+from .proc_frame import log_and_raise, log_debug
 
 # Constants
 C_DIR_SEPARATOR = "\\"
@@ -100,7 +100,7 @@ def ext_file_copy(source_file_in: str, target_file_in: str, overwrite: bool = Fa
         return
     
     try:
-        log_msg(f"Kopiere {source_file} nach {target_file}...")
+        log_debug(f"Kopiere {source_file} nach {target_file}...")
         shutil.copy2(source_file, target_file)
     except Exception as e:
         log_and_raise(f"Fehler beim Kopieren: {e}")
@@ -265,7 +265,7 @@ def get_files_in_directory(path: str) -> Dict[str, str]:
                 if full_path not in files_dict:
                     files_dict[full_path] = full_path
         
-        log_msg(f"Es wurden {len(files_dict)} Dateien im Verzeichnis '{path}' gefunden.")
+        log_debug(f"Es wurden {len(files_dict)} Dateien im Verzeichnis '{path}' gefunden.")
         
     except Exception as e:
         log_and_raise(f"Fehler beim Lesen des Verzeichnisses: {e}")

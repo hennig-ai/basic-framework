@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from ..container_utils.abstract_iterator import AbstractIterator
 from ..container_utils.container_in_memory import ContainerInMemory
 from ..conditions.condition import Condition
-from ..proc_frame import log_and_raise, log_msg
+from ..proc_frame import log_and_raise, log_warning, log_debug
 
 if TYPE_CHECKING:
     from .database_container import DatabaseContainer
@@ -110,7 +110,7 @@ class DatabaseIterator(AbstractIterator):
         if self._is_writable and self._table_name:
             self._primary_key = self._db.get_primary_key(self._table_name)
             if not self._primary_key:
-                log_msg(
+                log_warning(
                     f"Warnung: Tabelle '{self._table_name}' hat keinen Primary Key. "
                     "UPDATE und DELETE sind nicht möglich."
                 )
@@ -494,7 +494,7 @@ class DatabaseIterator(AbstractIterator):
     def _execute_insert(self) -> None:
         """Execute pending INSERT operation."""
         if not self._pending_values:
-            log_msg("INSERT übersprungen: Keine Werte gesetzt.")
+            log_debug("INSERT übersprungen: Keine Werte gesetzt.")
             return
 
         columns = list(self._pending_values.keys())
@@ -512,12 +512,12 @@ class DatabaseIterator(AbstractIterator):
         if self._auto_commit:
             self._db.commit()
 
-        log_msg(f"INSERT in '{self._table_name}' ausgeführt (rowid={self._last_insert_rowid}).")
+        log_debug(f"INSERT in '{self._table_name}' ausgeführt (rowid={self._last_insert_rowid}).")
 
     def _execute_update(self) -> None:
         """Execute pending UPDATE operation."""
         if not self._pending_values:
-            log_msg("UPDATE übersprungen: Keine Werte geändert.")
+            log_debug("UPDATE übersprungen: Keine Werte geändert.")
             return
 
         # Build SET clause
@@ -540,7 +540,7 @@ class DatabaseIterator(AbstractIterator):
         if self._auto_commit:
             self._db.commit()
 
-        log_msg(f"UPDATE in '{self._table_name}' ausgeführt.")
+        log_debug(f"UPDATE in '{self._table_name}' ausgeführt.")
 
     def _execute_delete(self) -> None:
         """Execute DELETE operation for current row."""
@@ -557,7 +557,7 @@ class DatabaseIterator(AbstractIterator):
         if self._auto_commit:
             self._db.commit()
 
-        log_msg(f"DELETE aus '{self._table_name}' ausgeführt.")
+        log_debug(f"DELETE aus '{self._table_name}' ausgeführt.")
 
     def __del__(self) -> None:
         """Cleanup when object is destroyed."""

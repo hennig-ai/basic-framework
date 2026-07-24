@@ -45,7 +45,7 @@ from basic_framework import (
     IniConfigFile,
     proc_frame_start,
     proc_frame_end,
-    log_msg,
+    log_info,
     log_and_raise,
     file_exists
 )
@@ -54,12 +54,12 @@ from basic_framework import (
 proc_frame_start("MyProcess", "1.0.0", "config.ini")
 
 try:
-    log_msg("Processing started")
+    log_info("Processing started")
 
     if not file_exists("data.csv"):
         log_and_raise("Required file data.csv not found")
 
-    log_msg("Processing completed successfully")
+    log_info("Processing completed successfully")
 finally:
     proc_frame_end()
 ```
@@ -106,9 +106,9 @@ from basic_framework import proc_frame_start, proc_frame_end, log_msg, log_and_r
 # Structured process lifecycle
 proc_frame_start("DataProcessing", "1.0.0", "config.ini")
 try:
-    log_msg("Processing started")
+    log_info("Processing started")
     # Your processing logic
-    log_msg("Processing completed successfully")
+    log_info("Processing completed successfully")
 except Exception as e:
     log_and_raise(f"Processing failed: {e}")
 finally:

@@ -220,7 +220,9 @@ class TestLoggingObjectLogMsg:
         # Should include MainThread or similar thread name
         assert "Thread" in content or "Main" in content
 
-    def test_log_msg_console_output_can_be_disabled(self, temp_log_dir: Path, capsys) -> None:
+    def test_log_msg_console_output_can_be_disabled(
+        self, temp_log_dir: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Test that console output can be disabled."""
         from basic_framework.logging_object import LoggingObject
 
@@ -474,13 +476,14 @@ class TestLoggingObjectLogLevelFamily:
         content = Path(log_path).read_text(encoding="utf-8")
         assert "Warning message" in content
 
-    def test_debug_info_warning_suppressed_when_error_only(self, temp_log_dir: Path) -> None:
-        """Test that error_only=True suppresses log_debug/log_info/log_warning."""
+    def test_debug_info_warning_suppressed_when_level_error(self, temp_log_dir: Path) -> None:
+        """Test that level=logging.ERROR suppresses log_debug/log_info/log_warning."""
         from basic_framework.logging_object import LoggingObject
+        import logging
 
         logger = LoggingObject(
             app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir),
-            console_output=False, error_only=True,
+            console_output=False, level=logging.ERROR,
         )
         log_path = logger.log_filepath
         logger.log_debug("should be suppressed (debug)")
@@ -516,10 +519,10 @@ class TestLoggingObjectLogLevelFamily:
 
         logger = LoggingObject(
             app_name="TestApp", app_version="1.0.0", log_dir=str(temp_log_dir),
-            console_output=False, error_only=True,
+            console_output=False, level=logging.ERROR,
         )
         log_path = logger.log_filepath
-        # error_only raises the threshold to ERROR - a DEBUG-tagged level=... call
+        # level=ERROR raises the threshold - a DEBUG-tagged level=... call
         # would normally be suppressed, but is_error=True must force it through.
         logger.log_msg("Forced error via is_error", level=logging.DEBUG, is_error=True)
         logger.close()

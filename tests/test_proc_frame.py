@@ -9,7 +9,6 @@ Tests for:
 
 import os
 from pathlib import Path
-from typing import Generator
 
 import pytest
 
@@ -67,7 +66,7 @@ class TestLogAndRaise:
 class TestLogMsg:
     """Tests for log_msg() function."""
 
-    def test_log_msg_does_not_raise(self, capsys) -> None:
+    def test_log_msg_does_not_raise(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_msg does not raise exceptions."""
         from basic_framework.proc_frame import log_msg
 
@@ -78,7 +77,7 @@ class TestLogMsg:
         captured = capsys.readouterr()
         assert "Test message" in captured.out
 
-    def test_log_msg_includes_timestamp(self, capsys) -> None:
+    def test_log_msg_includes_timestamp(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_msg includes timestamp."""
         from basic_framework.proc_frame import log_msg
 
@@ -89,7 +88,7 @@ class TestLogMsg:
         import re
         assert re.search(r"\d{4}-\d{2}-\d{2}", captured.out) is not None
 
-    def test_log_msg_fallback_format(self, capsys) -> None:
+    def test_log_msg_fallback_format(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_msg uses simple format when not initialized.
 
         When proc_frame_start() hasn't been called, log_msg falls back

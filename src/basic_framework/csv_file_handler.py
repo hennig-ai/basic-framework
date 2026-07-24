@@ -7,8 +7,8 @@ class CsvFileHandler(logging.FileHandler):
     """Writes CSV log lines to a file, with a header written on demand.
 
     `ensure_header()` is idempotent and safe to call either eagerly (right
-    after construction) or lazily (from `emit()`, e.g. in error_only mode
-    where the first record might be the first error).
+    after construction) or lazily (from `emit()`, e.g. at level=ERROR, where
+    the first record might be the first error).
     """
 
     def __init__(self, filename: str, header: str) -> None:

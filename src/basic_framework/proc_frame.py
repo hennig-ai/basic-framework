@@ -4,6 +4,7 @@ Process framework, logging functionality and global INI parameters.
 
 import logging
 import os
+import subprocess
 import sys
 from typing import Optional, Any, Dict, NoReturn, Union
 
@@ -284,7 +285,7 @@ def _acquire_process_lock(app_name: str) -> None:
     # Create lock file path
     _lock_file_path = os.path.join(tmp_dir, f"{app_name}.lock")
 
-    log_msg(f"Checking lock file: {_lock_file_path}, exists: {os.path.exists(_lock_file_path)}, my PID: {os.getpid()}, parent PID: {os.getppid()}")
+    log_debug(f"Checking lock file: {_lock_file_path}, exists: {os.path.exists(_lock_file_path)}, my PID: {os.getpid()}, parent PID: {os.getppid()}")
 
     # Check if lock is held by parent process (e.g., Uvicorn reloader)
     # or if lock is stale (process that held it is dead)
@@ -292,30 +293,30 @@ def _acquire_process_lock(app_name: str) -> None:
         try:
             with open(_lock_file_path, 'r', encoding='utf-8') as f:
                 lock_content = f.read().strip()
-                log_msg(f"Lock file content: '{lock_content}' (length: {len(lock_content)})")
+                log_debug(f"Lock file content: '{lock_content}' (length: {len(lock_content)})")
                 if lock_content:
                     locked_pid = int(lock_content)
                     parent_pid = os.getppid()
 
-                    log_msg(f"Lock file contains PID {locked_pid}, my PID is {os.getpid()}, my parent PID is {parent_pid}")
+                    log_debug(f"Lock file contains PID {locked_pid}, my PID is {os.getpid()}, my parent PID is {parent_pid}")
 
                     if locked_pid == parent_pid:
                         # Lock is held by our parent process - this is OK
                         # We are a child process (e.g., Uvicorn reload worker)
                         _is_child_of_lock_holder = True
-                        log_msg(f"Lock held by parent process (PID {locked_pid}), continuing as child process")
+                        log_debug(f"Lock held by parent process (PID {locked_pid}), continuing as child process")
                         return
 
                     # Check if the process that holds the lock is still alive
                     if not _is_process_alive(locked_pid):
                         # Stale lock - process is dead, we can take over
-                        log_msg(f"Stale lock detected (PID {locked_pid} is dead), taking over lock")
+                        log_debug(f"Stale lock detected (PID {locked_pid} is dead), taking over lock")
                         # Continue to acquire lock normally
                     else:
-                        log_msg(f"Process {locked_pid} is still alive, will try to acquire lock")
+                        log_debug(f"Process {locked_pid} is still alive, will try to acquire lock")
         except (ValueError, FileNotFoundError, PermissionError) as e:
             # Lock file corrupt, gone, or unreadable - proceed with normal lock acquisition
-            log_msg(f"Could not read lock file: {type(e).__name__}: {e}")
+            log_debug(f"Could not read lock file: {type(e).__name__}: {e}")
 
     # Try to acquire exclusive lock
     try:
@@ -346,7 +347,7 @@ def _acquire_process_lock(app_name: str) -> None:
             # Parent is running and holds the lock - we're likely a child process
             # (e.g., Uvicorn reload worker spawned by Reloader)
             _is_child_of_lock_holder = True
-            log_msg(f"Parent process (PID {parent_pid}) is running, assuming it holds the lock - continuing as child process")
+            log_debug(f"Parent process (PID {parent_pid}) is running, assuming it holds the lock - continuing as child process")
             return
 
         _lock_file_path = None
@@ -402,7 +403,7 @@ def _release_process_lock() -> None:
             _lock_file_path = None
 
 
-def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional[str] = None, dir_hint_for_http: str = "", error_only: bool = False):
+def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional[str] = None, dir_hint_for_http: str = ""):
     """Initialize the process framework with logging and configuration.
 
     Sets up global logging and optionally loads INI configuration file.
@@ -422,8 +423,6 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         config_file_path (str, optional): Path to the INI configuration file.
             If None, console-only logging without configuration. Defaults to None.
         dir_hint_for_http (str, optional): Directory hint for HTTP operations. Defaults to "".
-        error_only (bool, optional): If True, log_msg() is silenced and only
-            log_and_raise() writes output. Defaults to False.
 
     Required config parameters in [default] section (only when config_file_path is provided):
         single_instance: true/false - Enable single instance mode with filesystem lock.
@@ -468,9 +467,6 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         level_str = _read_string_config("level", "logging", "DEBUG")
         assert level_str is not None
         level = _parse_log_level(level_str)
-        # INI error_only overrides parameter (if set in INI, it wins)
-        if _read_bool_config("error_only", "logging", False):
-            error_only = True
 
         # Validate error_log_auto_copy_dir if specified
         if error_log_auto_copy_dir and not os.path.isdir(error_log_auto_copy_dir):
@@ -509,7 +505,6 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
             copy_on_error=copy_on_error,
             error_log_dir=error_log_dir if error_log_dir else "errors",
             error_log_auto_copy_dir=error_log_auto_copy_dir,
-            error_only=error_only,
             level=level,
         )
     else:
@@ -517,11 +512,10 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         _default_logger = LoggingObject(
             app_name=app_name,
             app_version=app_version,
-            error_only=error_only,
         )
 
     _initialized = True
-    log_msg("Prozess gestartet.")
+    log_info("Prozess gestartet.")
 
 
 def get_log_filename() -> str:
@@ -696,7 +690,7 @@ def proc_frame_end(beep: Optional[bool] = None, close_log_flag: bool = True):
     if should_beep:
         beep_tone_proc_frame_end()
 
-    log_msg("Prozess beendet.")
+    log_info("Prozess beendet.")
 
     if close_log_flag:
         close_log()
@@ -711,10 +705,10 @@ def proc_frame_end(beep: Optional[bool] = None, close_log_flag: bool = True):
                 if hasattr(os, 'startfile'):  # Windows
                     os.startfile(log_file_path)  # type: ignore[attr-defined]
                 else:  # Unix/Linux/Mac - use open command
-                    os.system(f'open "{log_file_path}"')
+                    subprocess.run(["open", log_file_path])
             except Exception as e:
-                log_msg(f"Could not open log file: {e}")
-                log_msg(f"Log file location: {log_file_path}")
+                log_warning(f"Could not open log file: {e}")
+                log_warning(f"Log file location: {log_file_path}")
 
     # Release process lock before exiting
     _release_process_lock()
@@ -872,7 +866,7 @@ def get_env_value(name: str) -> str:
         - Empty string is ALLOWED (different from INI parameters).
         - Use env_par_exists() to check existence before calling if needed.
     """
-    log_msg(f"Reading environment variable: {name}")
+    log_info(f"Reading environment variable: {name}")
 
     try:
         return os.environ[name]
