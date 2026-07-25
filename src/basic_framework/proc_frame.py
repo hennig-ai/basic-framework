@@ -403,7 +403,13 @@ def _release_process_lock() -> None:
             _lock_file_path = None
 
 
-def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional[str] = None, dir_hint_for_http: str = ""):
+def proc_frame_start(
+    app_name: str,
+    app_version: str,
+    config_file_path: Optional[str] = None,
+    dir_hint_for_http: str = "",
+    level: int = logging.INFO,
+):
     """Initialize the process framework with logging and configuration.
 
     Sets up global logging and optionally loads INI configuration file.
@@ -411,11 +417,14 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
     When config_file_path is provided (full mode):
     - Loads INI configuration, sets up file + console logging, optional single-instance lock.
     - Log files created in {config_dir}/logs/.
+    - The log level threshold comes exclusively from the required INI
+      `[logging] level` entry; the `level` parameter is ignored in this mode.
 
     When config_file_path is None (console-only mode):
     - No INI configuration, no file logging, no single-instance lock.
     - Structured CSV logging to stdout only.
     - get_global_par() and related config functions are not available.
+    - The `level` parameter sets the log level threshold (default: logging.INFO).
 
     Args:
         app_name (str): Name of the application for logging purposes.
@@ -423,6 +432,10 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         config_file_path (str, optional): Path to the INI configuration file.
             If None, console-only logging without configuration. Defaults to None.
         dir_hint_for_http (str, optional): Directory hint for HTTP operations. Defaults to "".
+        level: Log level threshold (logging.DEBUG/INFO/WARNING/ERROR) - only
+            applies in console-only mode (config_file_path=None); ignored when
+            an INI file is used, where `[logging] level` is authoritative.
+            Defaults to logging.INFO. Must not exceed logging.ERROR.
 
     Required config parameters in [default] section (only when config_file_path is provided):
         single_instance: true/false - Enable single instance mode with filesystem lock.
@@ -528,6 +541,7 @@ def proc_frame_start(app_name: str, app_version: str, config_file_path: Optional
         _default_logger = LoggingObject(
             app_name=app_name,
             app_version=app_version,
+            level=level,
         )
 
     _initialized = True
@@ -591,7 +605,7 @@ def log_msg(msg: str, obj: Any = None, *, is_error: bool = False, level: int = l
 
     Note:
         Uses frame inspection to automatically determine the calling method and class.
-        Format: "timestamp;app_name;app_version;pid;thread_id;thread_name;class;method;message"
+        Format: "timestamp;app_name;app_version;pid;thread_id;thread_name;class;method;level;message"
     """
     if _default_logger is not None:
         # caller_frame_offset=2: log_msg -> LoggingObject.log_msg -> actual caller

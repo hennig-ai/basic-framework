@@ -1,19 +1,19 @@
 """
 CSV log line formatting for the stdlib-logging-backed LoggingObject.
 
-Reproduces the historical CSV format exactly:
-Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Message
+CSV format (Level column added after Method, before Message):
+Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Level;Message
 """
 
 import logging
 from datetime import datetime
 from typing import Optional
 
-CSV_LOG_HEADER: str = "Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Message"
+CSV_LOG_HEADER: str = "Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Level;Message"
 
 _CSV_FORMAT: str = (
     "%(asctime)s;%(app_name)s;%(app_version)s;%(process)d;"
-    "%(thread)d;%(threadName)s;%(classinfo)s;%(funcName)s;%(message)s"
+    "%(thread)d;%(threadName)s;%(classinfo)s;%(funcName)s;%(levelname)s;%(message)s"
 )
 _DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -21,11 +21,11 @@ _DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S.%f"
 class CsvLogFormatter(logging.Formatter):
     """Formats a LogRecord as one semicolon-separated CSV line.
 
-    PID/ThreadID/ThreadName/Method come from stdlib's own LogRecord fields
-    (populated via the caller-supplied `stacklevel`). `app_name`/`app_version`
-    are stamped by AppContextFilter; `classinfo` is supplied per-call via
-    `extra=` by LoggingObject, since "class of the caller" is not a stdlib
-    LogRecord concept.
+    PID/ThreadID/ThreadName/Method/Level come from stdlib's own LogRecord
+    fields (Method populated via the caller-supplied `stacklevel`).
+    `app_name`/`app_version` are stamped by AppContextFilter; `classinfo` is
+    supplied per-call via `extra=` by LoggingObject, since "class of the
+    caller" is not a stdlib LogRecord concept.
     """
 
     def __init__(self) -> None:

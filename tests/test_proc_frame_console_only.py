@@ -5,6 +5,7 @@ Tests that proc_frame_start() works without a config_file_path,
 producing structured CSV logging to stdout without file logging.
 """
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -83,7 +84,7 @@ class TestConsoleOnlyLogging:
 
         captured = capsys.readouterr()
         lines = captured.out.strip().split("\n")
-        assert lines[0] == "Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Message"
+        assert lines[0] == "Timestamp;Application;Version;PID;ThreadID;ThreadName;Class;Method;Level;Message"
 
     def test_log_msg_csv_format(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_msg produces CSV-formatted output on stdout."""
@@ -92,15 +93,16 @@ class TestConsoleOnlyLogging:
         proc_frame.log_msg("Hello console")
         captured = capsys.readouterr()
 
-        # CSV format: timestamp;app;version;pid;tid;thread_name;class;method;msg
+        # CSV format: timestamp;app;version;pid;tid;thread_name;class;method;level;msg
         parts = captured.out.strip().split("\n")
         # Last line should be our message (first line is "Prozess gestartet.")
         log_line = parts[-1]
         fields = log_line.split(";")
-        assert len(fields) >= 9
+        assert len(fields) >= 10
         assert fields[1] == "test_app"
         assert fields[2] == "1.0.0"
-        assert "Hello console" in fields[8]
+        assert fields[8] == "INFO"
+        assert "Hello console" in fields[9]
 
     def test_log_msg_no_fallback_tag(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that LOGGING_FALLBACK tag is NOT present after init."""
@@ -158,7 +160,7 @@ class TestConsoleOnlyLogLevelFamily:
 
     def test_log_debug_writes_correct_caller(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_debug reports the correct caller class/method."""
-        proc_frame.proc_frame_start("test_app", "1.0.0")
+        proc_frame.proc_frame_start("test_app", "1.0.0", level=logging.DEBUG)
 
         class Worker:
             def run(self) -> None:
@@ -170,6 +172,7 @@ class TestConsoleOnlyLogLevelFamily:
         fields = log_line.split(";")
         assert fields[6] == "Worker"
         assert fields[7] == "run"
+        assert fields[8] == "DEBUG"
 
     def test_log_info_writes_to_console(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test that log_info produces console output."""
@@ -194,6 +197,43 @@ class TestConsoleOnlyLogLevelFamily:
         proc_frame.log_error("recoverable problem")  # must not raise
         captured = capsys.readouterr()
         assert "recoverable problem" in captured.out
+
+
+class TestConsoleOnlyLevelParameter:
+    """Tests for the level= parameter of proc_frame_start() in console-only mode."""
+
+    def test_default_level_is_info_not_debug(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that the console-only default is INFO - log_debug is suppressed
+        unless level=logging.DEBUG is passed explicitly."""
+        proc_frame.proc_frame_start("test_app", "1.0.0")
+
+        proc_frame.log_debug("should be suppressed")
+        proc_frame.log_info("should appear")
+        captured = capsys.readouterr()
+
+        assert "should be suppressed" not in captured.out
+        assert "should appear" in captured.out
+
+    def test_level_warning_suppresses_debug_and_info(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test that level=logging.WARNING suppresses DEBUG/INFO but not WARNING/ERROR."""
+        proc_frame.proc_frame_start("test_app", "1.0.0", level=logging.WARNING)
+
+        proc_frame.log_debug("debug suppressed")
+        proc_frame.log_info("info suppressed")
+        proc_frame.log_warning("warning appears")
+        proc_frame.log_error("error appears")
+        captured = capsys.readouterr()
+
+        assert "debug suppressed" not in captured.out
+        assert "info suppressed" not in captured.out
+        assert "warning appears" in captured.out
+        assert "error appears" in captured.out
+
+    def test_level_above_error_raises(self) -> None:
+        """Test that level=logging.CRITICAL raises ValueError (inherited from
+        LoggingObject's own validation - errors must always be logged)."""
+        with pytest.raises(ValueError):
+            proc_frame.proc_frame_start("test_app", "1.0.0", level=logging.CRITICAL)
 
 
 class TestConsoleOnlyLogAndRaise:
