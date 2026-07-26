@@ -118,6 +118,7 @@ Logdateien/
 nulltxt.txt
 docs/internal/
 test_output*.txt
-pyright_output*.txt
+pyright_*.txt
 compileall_output.txt
 build_output.txt
+pip_reinstall.txt
