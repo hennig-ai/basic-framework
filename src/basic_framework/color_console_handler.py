@@ -3,13 +3,20 @@
 import ctypes
 import logging
 import sys
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
 
 _RED = "\033[91m"
 _RESET = "\033[0m"
 
+# logging.StreamHandler is only subscriptable in the typeshed stubs, not at
+# runtime — subscript it for the type checker, use the bare class otherwise.
+if TYPE_CHECKING:
+    _StreamHandlerBase = logging.StreamHandler[TextIO]
+else:
+    _StreamHandlerBase = logging.StreamHandler
 
-class ColorConsoleHandler(logging.StreamHandler[TextIO]):
+
+class ColorConsoleHandler(_StreamHandlerBase):
     """Writes CSV log lines to stdout, coloring ERROR-and-above lines red.
 
     Coloring lives here (not in the Formatter) because the same Formatter
